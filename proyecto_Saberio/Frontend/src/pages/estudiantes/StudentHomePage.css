@@ -1,0 +1,335 @@
+/* =========================================
+   LAYOUT: HERO → BUSCADOR → MONITORES
+   El gap es el único espacio entre las 3 cajas
+========================================= */
+
+.student-page {
+  --student-gap: 28px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--student-gap);
+  width: 100%;
+}
+
+/* Las 3 cajas miden lo mismo y no aportan márgenes propios */
+.student-page > .student-hero,
+.student-page > .student-search,
+.student-page > .main-grid {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+/* =========================================
+   HERO DEL ESTUDIANTE
+========================================= */
+
+.student-hero {
+  padding: 0;
+}
+
+/* Anula márgenes inferiores que venga de PageHero */
+.student-hero,
+.student-hero > * {
+  margin-bottom: 0;
+}
+
+.student-hero .hero-box {
+  margin-top: 24px;
+  padding: 26px 32px 24px;
+  border-radius: 22px;
+
+  height: 450px;
+  min-height: 450px;
+  max-height: 450px;
+  box-sizing: border-box;
+
+  display: flex;
+  flex-direction: column;
+}
+
+/* Círculo decorativo */
+.student-hero .hero-box::before {
+  width: 260px;
+  height: 260px;
+  right: -75px;
+  top: -105px;
+}
+
+/* Saludo */
+.student-hero .hero-box__greeting {
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+/* Título */
+.student-hero .hero-box h1 {
+  font-size: clamp(26px, 3.5vw, 36px);
+  line-height: 1.05;
+  max-width: 17em;
+  margin-bottom: 12px;
+}
+
+/* =========================================
+   ASISTENTE DEL ESTUDIANTE
+========================================= */
+
+.student-hero .chat--student {
+  position: relative;
+  margin: 16px auto 0;
+  width: 100%;
+  max-width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+.student-hero .chat--student::before {
+  display: none;
+}
+
+/* Panel */
+.student-hero .chat--student .chat__panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 16px 18px;
+  gap: 0;
+  background: #ffffff;
+  color: #252653;
+  border: 1px solid #e8e5fa;
+  border-radius: 22px;
+  box-shadow: 0 8px 24px rgba(12, 15, 55, 0.12);
+}
+
+/* Cabecera */
+.student-hero .chat--student .chat__head {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eeecf7;
+}
+
+.student-hero .chat--student .chat__bot {
+  background: #eee9ff;
+  color: #6546d8;
+}
+
+.student-hero .chat--student .chat__head b {
+  color: #252653;
+}
+
+.student-hero .chat--student .chat__status {
+  color: #77758d;
+}
+
+/* Conversación */
+.student-hero .chat--student .chat__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  padding: 12px 2px 8px;
+  gap: 12px;
+  overflow-y: auto;
+  scrollbar-color: #d8d2ef transparent;
+}
+
+/* Mensajes */
+.student-hero .chat--student .bubble {
+  margin: 0;
+  padding: 9px 12px;
+  font-size: 13px;
+}
+
+.student-hero .chat--student .bubble--ia {
+  background: #f2efff;
+  border: 1px solid #e7e1ff;
+  color: #34315e;
+}
+
+.student-hero .chat--student .bubble--user {
+  background: #5145b8;
+  color: #ffffff;
+}
+
+/* Sugerencias */
+.student-hero .chat--student .chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-self: flex-start;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.student-hero .chat--student .chips button {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #5145b8;
+  border: 1px solid #dcd5f7;
+  background: #ffffff;
+  border-radius: 999px;
+}
+
+.student-hero .chat--student .chips button:hover {
+  color: #ffffff;
+  background: #5145b8;
+  border-color: #5145b8;
+}
+
+/* Indicador de escritura */
+.student-hero .chat--student .typing i {
+  background: #7563d9;
+}
+
+/* Campo de escritura */
+.student-hero .chat--student .chat__form {
+  display: flex;
+  flex-shrink: 0;
+  margin-top: auto;
+  min-height: 44px;
+  padding: 4px 5px 4px 12px;
+  border: 1px solid #e4e0f2;
+  background: #f9f8ff;
+  box-shadow: none;
+}
+
+.student-hero .chat--student .chat__form:focus-within {
+  outline: 2px solid #9b85ed;
+  outline-offset: 2px;
+}
+
+.student-hero .chat--student .chat__form input {
+  color: #252653;
+  font-size: 13px;
+}
+
+.student-hero .chat--student .chat__form input::placeholder {
+  color: #9996ad;
+}
+
+.student-hero .chat--student .chat__form button {
+  width: 36px;
+  height: 36px;
+  background: #6253d5;
+  color: #ffffff;
+  border-radius: 12px;
+}
+
+.student-hero .chat--student .chat__form button:hover:not(:disabled) {
+  background: #4939b5;
+}
+
+.student-hero .chat--student .chat__form button:disabled {
+  background: #e8e4f7;
+  color: #9993bb;
+}
+
+/* =========================================
+   BUSCADOR (el espacio lo da el gap del layout)
+========================================= */
+
+.student-search {
+  padding: 0;
+}
+
+/* =========================================
+   FILTRO ACTIVO DEL ASISTENTE
+========================================= */
+
+.assistant-filter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  border-radius: 14px;
+  background: var(--lavanda);
+}
+
+.assistant-filter div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.assistant-filter span {
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+
+.assistant-filter strong {
+  color: var(--primario);
+  font-size: 14px;
+}
+
+.assistant-filter button {
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--primario);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* =========================================
+   RESPONSIVE
+========================================= */
+
+@media (max-width: 720px) {
+  .student-hero .hero-box {
+    height: 400px;
+    min-height: 400px;
+    max-height: 400px;
+    padding: 24px 20px;
+  }
+}
+
+@media (max-width: 560px) {
+  .student-hero .chat--student .chat__panel {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .assistant-filter {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+.student-page {
+  --student-gap: 28px;
+  gap: 0 !important;
+}
+
+/* Hero: contiene su propia altura y deja el espacio abajo */
+.student-page > .student-hero {
+  display: flow-root;
+  height: auto !important;
+  margin: 0 0 var(--student-gap) !important;
+  padding: 24px 0 0 !important;   /* reemplaza el margin-top del hero-box */
+}
+
+.student-page > .student-hero > *,
+.student-page > .student-hero .hero-box {
+  margin: 0 !important;
+}
+
+/* Buscador: sin márgenes ni paddings propios, solo el espacio de abajo */
+.student-page > .student-search {
+  margin: 0 0 var(--student-gap) !important;
+  padding: 0 !important;
+}
+
+.student-page > .student-search .search {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+.student-page > .main-grid.main-grid {
+  margin: 0 !important;
+  padding-top: 0 !important;
+}
