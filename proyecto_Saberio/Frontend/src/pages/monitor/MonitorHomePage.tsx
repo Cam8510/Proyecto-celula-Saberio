@@ -87,7 +87,7 @@ function MonitorHomePage() {
             )}
             <p style={{ marginTop: 16 }}>
               <Link to="/monitor/solicitudes" style={{ color: 'var(--acento)', fontWeight: 700 }}>
-                Ver y responder solicitudes →
+                Ver y responder solicitudes
               </Link>
             </p>
           </Card>

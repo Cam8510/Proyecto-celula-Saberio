@@ -60,7 +60,7 @@ function AdminHomePage() {
               </div>
             )}
             <p style={{ marginTop: 16 }}>
-              <Link to="/admin/soportes" style={{ color: 'var(--acento)', fontWeight: 700 }}>Verificar soportes →</Link>
+              <Link to="/admin/soportes" style={{ color: 'var(--acento)', fontWeight: 700 }}>Verificar soportes</Link>
             </p>
           </Card>
 

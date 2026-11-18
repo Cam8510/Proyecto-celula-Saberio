@@ -7,6 +7,7 @@ import { getSession, logout } from '../../../services/authService'
 import { getInitials } from '../../../utils/format'
 import AppNavbar from '../AppNavbar/AppNavbar'
 import MobileTabBar from '../MobileTabBar/MobileTabBar'
+import Footer from '../../Footer/Footer'
 // @ts-ignore - the stylesheet is declared by the project's Vite setup
 import './DashboardLayout.css'
 
@@ -50,8 +51,10 @@ function DashboardLayout({ role, notifications, children }: DashboardLayoutProps
         onLogout={handleLogout}
       />
 
-      <div className="dashboard">{children}</div>
-
+      <div className="dashboard">
+        {children}
+      </div>
+      <Footer />
       <MobileTabBar items={items} homeTo={homeTo} />
     </>
   )

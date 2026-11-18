@@ -97,7 +97,7 @@ function LoginPage() {
         </AuthCard>
       </main>
 
-      <Footer text="Saberio, Universidad del Rosario © 2026" />
+      <Footer />
       <ForgotPasswordModal open={showRecover} onClose={() => setShowRecover(false)} />
     </div>
   )

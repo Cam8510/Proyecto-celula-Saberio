@@ -4,4 +4,5 @@ export interface AppNotification {
   title: string
   text: string
   time: string
+  href?: string
 }

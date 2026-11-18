@@ -163,15 +163,28 @@
 }
 
 .chat__form button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
   flex: none;
   width: 44px;
   height: 44px;
+
+  padding: 0;
   border: 0;
   border-radius: 14px;
+
   background: var(--acento);
   color: #fff;
-  font-size: 20px;
   cursor: pointer;
+}
+
+.chat__form button svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
 }
 
 .chat__form button:disabled { background: var(--lavanda); color: #9a9cc0; cursor: not-allowed; }

@@ -72,14 +72,7 @@ function HomePage() {
         />
       </main>
 
-      <Footer
-        text="Saberio, Universidad del Rosario"
-        links={[
-          { label: 'Términos', href: '#' },
-          { label: 'Privacidad', href: '#' },
-          { label: 'Contacto', href: '#' },
-        ]}
-      />
+      <Footer />
     </div>
   )
 }

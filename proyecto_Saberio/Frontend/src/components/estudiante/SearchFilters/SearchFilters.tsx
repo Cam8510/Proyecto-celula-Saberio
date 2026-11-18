@@ -71,9 +71,8 @@ function CustomSelect({
               type="button"
               role="option"
               aria-selected={value === option.value}
-              className={`search__option ${
-                value === option.value ? 'selected' : ''
-              }`}
+              className={`search__option ${value === option.value ? 'selected' : ''
+                }`}
               onClick={() => {
                 onChange(option.value)
                 setOpen(false)
@@ -125,7 +124,20 @@ function SearchFilters({
         />
 
         <button type="submit" aria-label="Agregar búsqueda">
-          →
+          <svg
+            viewBox="0 0 24 24"
+            width="20"
+            height="20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M5 12h14" />
+            <path d="m13 6 6 6-6 6" />
+          </svg>
         </button>
       </form>
 
