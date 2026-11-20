@@ -85,8 +85,8 @@ function AssistantChat({
             id,
             kind: 'ia',
             text: topic
-              ? `Entendido: ${topic} en ${subject.name}. Ya actualicé los monitores disponibles en la página.`
-              : `Entendido: ${subject.name}. Ya actualicé los monitores disponibles en la página.`,
+              ? `¡Entendido! Buscaremos monitorías de ${subject.name} sobre ${topic}.`
+              : `¡Entendido! Aquí tienes monitorías disponibles de ${subject.name}.`,
           }))
         } else {
           add((id) => ({

@@ -1,5 +1,7 @@
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
+
 import type { Monitor, SessionRequestForm } from '../../types/monitoring'
 
 import { filterMonitors } from '../../utils/search'
@@ -30,7 +32,15 @@ const QUICK_SUBJECTS = [
 ]
 
 function StudentSearchPage() {
+  const location = useLocation()
   const { message, visible, showToast } = useToast()
+
+  // =========================================
+  // BÚSQUEDA RECIBIDA DESDE INICIO
+  // =========================================
+
+  const incomingQuery =
+    (location.state as { query?: string } | null)?.query ?? ''
 
   // Filtros de búsqueda
   const [query, setQuery] = useState('')
@@ -39,19 +49,42 @@ function StudentSearchPage() {
   const [minRating, setMinRating] = useState('')
   const [sort, setSort] = useState('best')
 
-  // Horario seleccionado
+  // Aplicar búsqueda enviada desde Inicio
+  useEffect(() => {
+    const value = incomingQuery.trim()
+
+    if (!value) return
+
+    setQuery('')
+    setQueryTags([value])
+    setModality('')
+    setMinRating('')
+    setSort('best')
+    setSelection(null)
+  }, [incomingQuery, location.key])
+
+  // =========================================
+  // HORARIO SELECCIONADO
+  // =========================================
+
   const [selection, setSelection] = useState<{
     monitorId: number
     slot: string
   } | null>(null)
 
-  // Monitor y horario para reservar
+  // =========================================
+  // MONITOR Y HORARIO PARA RESERVAR
+  // =========================================
+
   const [requesting, setRequesting] = useState<{
     monitor: Monitor
     slot: string
   } | null>(null)
 
-  // Agregar búsqueda
+  // =========================================
+  // AGREGAR BÚSQUEDA
+  // =========================================
+
   const handleQuerySubmit = (searchValue?: string) => {
     const value = (searchValue ?? query).trim()
 
@@ -59,23 +92,29 @@ function StudentSearchPage() {
 
     setQueryTags((previous) =>
       previous.some(
-        (tag) => tag.toLowerCase() === value.toLowerCase()
+        (tag) => tag.toLowerCase() === value.toLowerCase(),
       )
         ? previous
-        : [...previous, value]
+        : [...previous, value],
     )
 
     setQuery('')
   }
 
-  // Eliminar búsqueda aplicada
+  // =========================================
+  // ELIMINAR BÚSQUEDA APLICADA
+  // =========================================
+
   const handleRemoveQueryTag = (tag: string) => {
     setQueryTags((previous) =>
-      previous.filter((item) => item !== tag)
+      previous.filter((item) => item !== tag),
     )
   }
 
-  // Limpiar todos los filtros
+  // =========================================
+  // LIMPIAR TODOS LOS FILTROS
+  // =========================================
+
   const clearFilters = () => {
     setQuery('')
     setQueryTags([])
@@ -85,7 +124,10 @@ function StudentSearchPage() {
     setSelection(null)
   }
 
-  // Obtener resultados
+  // =========================================
+  // OBTENER RESULTADOS
+  // =========================================
+
   const results = useMemo(() => {
     return filterMonitors(monitors, {
       query: queryTags.join(' '),
@@ -95,7 +137,10 @@ function StudentSearchPage() {
     })
   }, [queryTags, modality, minRating, sort])
 
-  // Seleccionar o deseleccionar horario
+  // =========================================
+  // SELECCIONAR O DESELECCIONAR HORARIO
+  // =========================================
+
   const handleSelectSlot = (monitorId: number, slot: string) => {
     const same =
       selection?.monitorId === monitorId &&
@@ -104,17 +149,24 @@ function StudentSearchPage() {
     setSelection(same ? null : { monitorId, slot })
   }
 
-  // Enviar solicitud de tutoría
+  // =========================================
+  // ENVIAR SOLICITUD DE TUTORÍA
+  // =========================================
+
   const handleSubmitRequest = (_data: SessionRequestForm) => {
     if (!requesting) return
 
     showToast(
-      `Solicitud enviada a ${requesting.monitor.name} para ${requesting.slot} ✅`
+      `Solicitud enviada a ${requesting.monitor.name} para ${requesting.slot} ✅`,
     )
 
     setRequesting(null)
     setSelection(null)
   }
+
+  // =========================================
+  // RENDERIZADO
+  // =========================================
 
   return (
     <DashboardLayout
@@ -123,7 +175,7 @@ function StudentSearchPage() {
     >
       <div className="student-search-page">
 
-        {/* HERO: misma estructura que las demás páginas */}
+        {/* HERO */}
         <PageHero
           title="Encuentra tu monitor"
           description="Busca monitores por materia, tema, modalidad y disponibilidad."

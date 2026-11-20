@@ -109,7 +109,34 @@ export const studentHistory: SessionRecord[] = [
 ]
 
 export const studentNotifications: AppNotification[] = [
-  { id: 1, type: 'request', title: 'Nueva solicitud de monitoría', text: 'Álgebra Lineal, Vie 19 Sep, 2:00 PM', time: 'Hace 5 min' },
-  { id: 2, type: 'success', title: 'Solicitud aceptada', text: 'Carlos Ruiz aceptó tu solicitud de Cálculo Diferencial', time: 'Hace 1 hora' },
-  { id: 3, type: 'warning', title: 'Recordatorio', text: 'Monitoría de Cálculo mañana, 10:00 AM', time: 'Hace 2 horas' },
+  {
+    id: 1,
+    type: 'request',
+    title: 'Nueva solicitud de monitoría',
+    text: 'Álgebra Lineal, Vie 19 Sep, 2:00 PM',
+    details:
+      'Has recibido una nueva solicitud de monitoría de Álgebra Lineal.\n\nFecha: Viernes 19 de septiembre\nHora: 2:00 PM\nEstado: Pendiente de revisión.',
+    time: 'Hace 5 min',
+    read: false,
+  },
+  {
+    id: 2,
+    type: 'success',
+    title: 'Solicitud aceptada',
+    text: 'Carlos Ruiz aceptó tu solicitud de Cálculo Diferencial',
+    details:
+      'Carlos Ruiz ha aceptado tu solicitud de monitoría.\n\nMateria: Cálculo Diferencial\nEstado: Aceptada\nPuedes consultar los detalles de tu monitoría en tu sección de monitorías.',
+    time: 'Hace 1 hora',
+    read: false,
+  },
+  {
+    id: 3,
+    type: 'warning',
+    title: 'Recordatorio',
+    text: 'Monitoría de Cálculo mañana, 10:00 AM',
+    details:
+      'Recuerda que tienes una monitoría programada.\n\nMateria: Cálculo Diferencial\nMonitor: Carlos Ruiz\nFecha: Mañana\nHora: 10:00 AM\nModalidad: Virtual',
+    time: 'Hace 2 horas',
+    read: false,
+  },
 ]

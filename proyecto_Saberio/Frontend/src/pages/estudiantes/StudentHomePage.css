@@ -1,243 +1,169 @@
 /* =========================================
-   LAYOUT: HERO → BUSCADOR → MONITORES
-   El gap es el único espacio entre las 3 cajas
+   STUDENT HOMEPAGE — estilo inspirado en Buscar monitoría
 ========================================= */
 
 .student-page {
-  --student-gap: 28px;
-
+  --student-gap: 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--student-gap);
   width: 100%;
-}
-
-/* Las 3 cajas miden lo mismo y no aportan márgenes propios */
-.student-page > .student-hero,
-.student-page > .student-search,
-.student-page > .main-grid {
-  width: 100%;
-  max-width: 1100px;
-  margin: 0;
   box-sizing: border-box;
 }
 
-/* =========================================
-   HERO DEL ESTUDIANTE
-========================================= */
 
-.student-hero {
-  padding: 0;
-}
-
-/* Anula márgenes inferiores que venga de PageHero */
-.student-hero,
-.student-hero > * {
-  margin-bottom: 0;
-}
-
-.student-hero .hero-box {
-  margin-top: 24px;
-  padding: 26px 32px 24px;
-  border-radius: 22px;
-
-  height: 450px;
-  min-height: 450px;
-  max-height: 450px;
+/* Contenedores principales */
+.student-page>.student-hero,
+.student-page>.main-grid {
+  width: min(100%, 1100px);
   box-sizing: border-box;
-
-  display: flex;
-  flex-direction: column;
+  margin: 0 auto;
 }
 
-/* Círculo decorativo */
-.student-hero .hero-box::before {
-  width: 260px;
-  height: 260px;
-  right: -75px;
-  top: -105px;
+
+/* HERO */
+.student-page:not(.student-search-page)>.student-hero {
+  padding-top: 20px;
 }
 
-/* Saludo */
-.student-hero .hero-box__greeting {
-  font-size: 13px;
-  margin-bottom: 8px;
-}
 
-/* Título */
-.student-hero .hero-box h1 {
-  font-size: clamp(26px, 3.5vw, 36px);
-  line-height: 1.05;
-  max-width: 17em;
-  margin-bottom: 12px;
-}
-
-/* =========================================
-   ASISTENTE DEL ESTUDIANTE
-========================================= */
-
-.student-hero .chat--student {
+.student-page:not(.student-search-page) .student-hero .hero-box {
   position: relative;
-  margin: 16px auto 0;
+  overflow: hidden;
   width: 100%;
-  max-width: 100%;
-  flex: 1;
   min-height: 0;
-}
-
-.student-hero .chat--student::before {
-  display: none;
-}
-
-/* Panel */
-.student-hero .chat--student .chat__panel {
+  height: auto;
+  max-height: none;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  box-sizing: border-box;
-  padding: 16px 18px;
-  gap: 0;
-  background: #ffffff;
-  color: #252653;
-  border: 1px solid #e8e5fa;
-  border-radius: 22px;
-  box-shadow: 0 8px 24px rgba(12, 15, 55, 0.12);
-}
-
-/* Cabecera */
-.student-hero .chat--student .chat__head {
-  padding-bottom: 12px;
-  border-bottom: 1px solid #eeecf7;
-}
-
-.student-hero .chat--student .chat__bot {
-  background: #eee9ff;
-  color: #6546d8;
-}
-
-.student-hero .chat--student .chat__head b {
-  color: #252653;
-}
-
-.student-hero .chat--student .chat__status {
-  color: #77758d;
-}
-
-/* Conversación */
-.student-hero .chat--student .chat__list {
-  flex: 1 1 auto;
-  min-height: 0;
-  max-height: none;
-  padding: 12px 2px 8px;
-  gap: 12px;
-  overflow-y: auto;
-  scrollbar-color: #d8d2ef transparent;
-}
-
-/* Mensajes */
-.student-hero .chat--student .bubble {
+  justify-content: flex-start;
+  padding: 38px 42px 34px;
   margin: 0;
-  padding: 9px 12px;
+  border-radius: 28px;
+  background: var(--primario);
+  color: #fff;
+}
+
+
+.student-home-hero-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+}
+
+
+.student-page:not(.student-search-page) .hero-box__greeting {
   font-size: 13px;
+  line-height: 1.4;
+  margin: 0 0 8px;
+  color: #cfcbf5;
 }
 
-.student-hero .chat--student .bubble--ia {
-  background: #f2efff;
-  border: 1px solid #e7e1ff;
-  color: #34315e;
+
+.student-page:not(.student-search-page) .hero-box h1 {
+  font-size: clamp(34px, 4.2vw, 48px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  max-width: 15em;
+  margin: 0;
 }
 
-.student-hero .chat--student .bubble--user {
-  background: #5145b8;
-  color: #ffffff;
+
+.student-home-hero-description {
+  margin: 10px 0 0;
+  max-width: 600px;
+  color: #cfcbf5;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
-/* Sugerencias */
-.student-hero .chat--student .chips {
+
+/* Decoración circular del hero */
+.student-page:not(.student-search-page) .hero-box::before {
+  width: 380px;
+  height: 380px;
+  right: -110px;
+  top: -150px;
+  opacity: .55;
+}
+
+
+.student-home-search {
+  position: relative;
+  z-index: 2;
+
   display: flex;
-  flex-wrap: wrap;
-  align-self: flex-start;
-  gap: 8px;
-  margin: 14px 0;
+  align-items: center;
+  gap: 10px;
+
+  width: 90%;
+  max-width: none;
+
+  box-sizing: border-box;
+  margin-top: 24px;
+  padding: 7px 8px 7px 18px;
+
+  background: #fff;
+  border: 1px solid rgba(255, 255, 255, .35);
+  border-radius: 15px;
+
+  box-shadow: 0 5px 18px rgba(20, 20, 60, .12);
 }
 
-.student-hero .chat--student .chips button {
-  padding: 6px 10px;
-  font-size: 12px;
-  color: #5145b8;
-  border: 1px solid #dcd5f7;
-  background: #ffffff;
-  border-radius: 999px;
+
+.student-home-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--primario);
+  padding: 11px 0;
 }
 
-.student-hero .chat--student .chips button:hover {
-  color: #ffffff;
-  background: #5145b8;
-  border-color: #5145b8;
+.student-home-search input::placeholder {
+  color: #9293b2;
 }
 
-/* Indicador de escritura */
-.student-hero .chat--student .typing i {
-  background: #7563d9;
-}
-
-/* Campo de escritura */
-.student-hero .chat--student .chat__form {
-  display: flex;
+.student-home-search button {
+  width: 40px;
+  height: 40px;
   flex-shrink: 0;
-  margin-top: auto;
-  min-height: 44px;
-  padding: 4px 5px 4px 12px;
-  border: 1px solid #e4e0f2;
-  background: #f9f8ff;
-  box-shadow: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 11px;
+  background: var(--acento);
+  color: #fff;
+  font-size: 21px;
+  cursor: pointer;
+  transition: transform .2s, background .2s;
 }
 
-.student-hero .chat--student .chat__form:focus-within {
-  outline: 2px solid #9b85ed;
-  outline-offset: 2px;
+.student-home-search button:hover {
+  background: var(--purpura);
+  transform: translateY(-1px);
 }
 
-.student-hero .chat--student .chat__form input {
-  color: #252653;
-  font-size: 13px;
+
+/* GRID PRINCIPAL */
+.student-page>.main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(280px, 1fr);
+  gap: 28px;
+  margin: 0;
+  padding-top: 2px;
+  align-items: start;
 }
 
-.student-hero .chat--student .chat__form input::placeholder {
-  color: #9996ad;
-}
 
-.student-hero .chat--student .chat__form button {
-  width: 36px;
-  height: 36px;
-  background: #6253d5;
-  color: #ffffff;
-  border-radius: 12px;
-}
-
-.student-hero .chat--student .chat__form button:hover:not(:disabled) {
-  background: #4939b5;
-}
-
-.student-hero .chat--student .chat__form button:disabled {
-  background: #e8e4f7;
-  color: #9993bb;
-}
-
-/* =========================================
-   BUSCADOR (el espacio lo da el gap del layout)
-========================================= */
-
-.student-search {
-  padding: 0;
-}
-
-/* =========================================
-   FILTRO ACTIVO DEL ASISTENTE
-========================================= */
-
+/* Filtro activo del asistente */
 .assistant-filter {
   display: flex;
   justify-content: space-between;
@@ -266,31 +192,88 @@
 }
 
 .assistant-filter button {
-  padding: 6px 10px;
+  padding: 7px 10px;
   border: 0;
   background: transparent;
   color: var(--primario);
   font-weight: 700;
   cursor: pointer;
+  white-space: nowrap;
 }
 
-/* =========================================
-   RESPONSIVE
-========================================= */
 
-@media (max-width: 720px) {
-  .student-hero .hero-box {
-    height: 400px;
-    min-height: 400px;
-    max-height: 400px;
-    padding: 24px 20px;
+/* Ajustes para evitar desbordes */
+.student-page>.main-grid>* {
+  min-width: 0;
+}
+
+.student-page .main-grid .stack {
+  min-width: 0;
+}
+
+
+/* TABLET */
+@media (max-width: 900px) {
+
+  .student-page>.student-hero,
+  .student-page>.main-grid {
+    width: calc(100% - 40px);
+  }
+
+  .student-page>.main-grid {
+    grid-template-columns: minmax(0, 1.5fr) minmax(250px, 1fr);
+    gap: 20px;
+  }
+
+  .student-page:not(.student-search-page) .student-hero .hero-box {
+    padding: 34px 30px;
   }
 }
 
-@media (max-width: 560px) {
-  .student-hero .chat--student .chat__panel {
-    padding: 14px;
-    border-radius: 18px;
+
+/* MOBILE */
+@media (max-width: 720px) {
+  .student-page {
+    --student-gap: 18px;
+  }
+
+  .student-page:not(.student-search-page)>.student-hero {
+    padding-top: 16px;
+  }
+
+  .student-page:not(.student-search-page) .student-hero .hero-box {
+    padding: 28px 22px 24px;
+    border-radius: 24px;
+  }
+
+  .student-page:not(.student-search-page) .hero-box h1 {
+    font-size: clamp(28px, 7vw, 36px);
+  }
+
+  .student-home-hero-description {
+    font-size: 13px;
+  }
+
+  .student-page:not(.student-search-page) .hero-box::before {
+    width: 210px;
+    height: 210px;
+    right: -75px;
+    top: -90px;
+  }
+
+  .student-home-search {
+    margin-top: 20px;
+    width: 100%;
+    padding-left: 13px;
+  }
+
+  .student-home-search input {
+    font-size: 13px;
+  }
+
+  .student-page>.main-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
   }
 
   .assistant-filter {
@@ -299,37 +282,30 @@
   }
 }
 
-.student-page {
-  --student-gap: 28px;
-  gap: 0 !important;
-}
 
-/* Hero: contiene su propia altura y deja el espacio abajo */
-.student-page > .student-hero {
-  display: flow-root;
-  height: auto !important;
-  margin: 0 0 var(--student-gap) !important;
-  padding: 24px 0 0 !important;   /* reemplaza el margin-top del hero-box */
-}
+@media (max-width: 560px) {
 
-.student-page > .student-hero > *,
-.student-page > .student-hero .hero-box {
-  margin: 0 !important;
-}
+  .student-page>.student-hero,
+  .student-page>.main-grid {
+    width: calc(100% - 28px);
+  }
 
-/* Buscador: sin márgenes ni paddings propios, solo el espacio de abajo */
-.student-page > .student-search {
-  margin: 0 0 var(--student-gap) !important;
-  padding: 0 !important;
-}
+  .student-page:not(.student-search-page) .student-hero .hero-box {
+    padding: 23px 19px 20px;
+    border-radius: 21px;
+  }
 
-.student-page > .student-search .search {
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-}
+  .student-page:not(.student-search-page) .hero-box h1 {
+    font-size: 27px;
+  }
 
-.student-page > .main-grid.main-grid {
-  margin: 0 !important;
-  padding-top: 0 !important;
+  .student-home-search {
+    gap: 6px;
+    padding-left: 11px;
+  }
+
+  .student-home-search button {
+    width: 35px;
+    height: 35px;
+  }
 }

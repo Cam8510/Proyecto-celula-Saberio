@@ -1,6 +1,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { AppNotification } from '../../../types/notification'
+import NotificationModal from '../NotificationModal/NotificationModal'
 import './NotificationBell.css'
 
 interface NotificationBellProps {
@@ -56,7 +57,36 @@ function NotificationIcon({
 
 function NotificationBell({ notifications }: NotificationBellProps) {
   const [open, setOpen] = useState(false)
+  const [localNotifications, setLocalNotifications] = useState(
+    notifications.map((notification) => ({
+      ...notification,
+      read: notification.read ?? false,
+    })),
+  )
+  const [selectedNotification, setSelectedNotification] =
+    useState<AppNotification | null>(null)
+
   const ref = useRef<HTMLDivElement>(null)
+
+  const unreadCount = localNotifications.filter(
+    (notification) => !notification.read,
+  ).length
+
+  // Sincroniza las notificaciones recibidas desde el padre.
+  useEffect(() => {
+    setLocalNotifications((previous) =>
+      notifications.map((notification) => {
+        const existing = previous.find(
+          (item) => item.id === notification.id,
+        )
+
+        return {
+          ...notification,
+          read: existing?.read ?? notification.read ?? false,
+        }
+      }),
+    )
+  }, [notifications])
 
   // Cierra el panel con clic afuera o con Escape.
   useEffect(() => {
@@ -83,76 +113,143 @@ function NotificationBell({ notifications }: NotificationBellProps) {
     }
   }, [open])
 
+  // Marca una notificación como leída.
+  const markAsRead = (id: number) => {
+    setLocalNotifications((previous) =>
+      previous.map((notification) =>
+        notification.id === id
+          ? { ...notification, read: true }
+          : notification,
+      ),
+    )
+  }
+
+  // Marca todas las notificaciones como leídas.
+  const markAllAsRead = () => {
+    setLocalNotifications((previous) =>
+      previous.map((notification) => ({
+        ...notification,
+        read: true,
+      })),
+    )
+  }
+
+  // Abre los detalles de una notificación.
+  const handleNotificationClick = (notification: AppNotification) => {
+    markAsRead(notification.id)
+
+    setSelectedNotification({
+      ...notification,
+      read: true,
+    })
+
+    setOpen(false)
+  }
+
   return (
-    <div className="bell" ref={ref}>
-      <button
-        type="button"
-        className="bell__button"
-        aria-label="Notificaciones"
-        aria-expanded={open}
-        onClick={() => setOpen((previous) => !previous)}
-      >
-        <svg
-          className="mi-campana"
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={1.8}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
+    <>
+      <div className="bell" ref={ref}>
+        <button
+          type="button"
+          className="bell__button"
+          aria-label={`Notificaciones${unreadCount > 0 ? `, ${unreadCount} sin leer` : ''}`}
+          aria-expanded={open}
+          onClick={() => setOpen((previous) => !previous)}
         >
-          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M10 21h4" />
-        </svg>
+          <svg
+            className="mi-campana"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.8}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M10 21h4" />
+          </svg>
 
-        {notifications.length > 0 && (
-          <i>{notifications.length}</i>
-        )}
-      </button>
+          {unreadCount > 0 && (
+            <i>{unreadCount > 99 ? '99+' : unreadCount}</i>
+          )}
+        </button>
 
-      {open && (
-        <div className="bell__panel">
-          <header>
-            <h4>Notificaciones</h4>
+        {open && (
+          <div className="bell__panel">
+            <header className="bell__header">
+              <h4>Notificaciones</h4>
 
-            <button
-              type="button"
-              aria-label="Cerrar notificaciones"
-              onClick={() => setOpen(false)}
-            >
-              ✕
-            </button>
-          </header>
-
-          <div className="bell__list">
-            {notifications.length === 0 && (
-              <p className="bell__empty">
-                No tienes notificaciones.
-              </p>
-            )}
-
-            {notifications.map((notification) => (
-              <div className="bell__item" key={notification.id}>
-                <span
-                  className={`bell__icon bell__icon--${notification.type}`}
+              <div className="bell__header-actions">
+                <button
+                  type="button"
+                  className="bell__mark-all"
+                  onClick={markAllAsRead}
+                  disabled={unreadCount === 0}
                 >
-                  <NotificationIcon type={notification.type} />
-                </span>
+                  Marcar todo como leído
+                </button>
 
-                <div>
-                  <b>{notification.title}</b>
-                  <p>{notification.text}</p>
-                </div>
-
-                <time>{notification.time}</time>
+                <button
+                  type="button"
+                  className="bell__close"
+                  aria-label="Cerrar notificaciones"
+                  onClick={() => setOpen(false)}
+                >
+                  ✕
+                </button>
               </div>
-            ))}
+            </header>
+
+            <div className="bell__list">
+              {localNotifications.length === 0 && (
+                <p className="bell__empty">
+                  No tienes notificaciones.
+                </p>
+              )}
+
+              {localNotifications.map((notification) => (
+                <button
+                  type="button"
+                  className={`bell__item ${
+                    notification.read ? 'is-read' : 'is-unread'
+                  }`}
+                  key={notification.id}
+                  onClick={() =>
+                    handleNotificationClick(notification)
+                  }
+                >
+                  <span
+                    className={`bell__icon bell__icon--${notification.type}`}
+                  >
+                    <NotificationIcon type={notification.type} />
+                  </span>
+
+                  <div className="bell__content">
+                    <b>{notification.title}</b>
+                    <p>{notification.text}</p>
+                    <time>{notification.time}</time>
+                  </div>
+
+                  {!notification.read && (
+                    <span
+                      className="bell__unread-dot"
+                      aria-label="No leída"
+                    />
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+
+      <NotificationModal
+        notification={selectedNotification}
+        onClose={() => setSelectedNotification(null)}
+      />
+    </>
   )
 }
 

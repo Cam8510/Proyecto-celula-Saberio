@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
-// @ts-ignore - Vite gestiona las importaciones de hojas de estilo.
 import './Modal.css'
 
 interface ModalProps {
@@ -12,19 +12,24 @@ interface ModalProps {
 }
 
 function Modal({ open, title, onClose, children, footer }: ModalProps) {
-  // Cierra con la tecla Escape mientras el modal esté abierto
+  // Cerrar con Escape
   useEffect(() => {
     if (!open) return
+
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
+
     document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
+
+    return () => {
+      document.removeEventListener('keydown', handleKey)
+    }
   }, [open, onClose])
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
       <div
         className="modal"
@@ -35,12 +40,28 @@ function Modal({ open, title, onClose, children, footer }: ModalProps) {
       >
         <header className="modal__header">
           <h3>{title}</h3>
-          <button type="button" aria-label="Cerrar" onClick={onClose}>✕</button>
+
+          <button
+            type="button"
+            aria-label="Cerrar"
+            onClick={onClose}
+          >
+            ✕
+          </button>
         </header>
-        <div className="modal__body">{children}</div>
-        {footer && <footer className="modal__footer">{footer}</footer>}
+
+        <div className="modal__body">
+          {children}
+        </div>
+
+        {footer && (
+          <footer className="modal__footer">
+            {footer}
+          </footer>
+        )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 

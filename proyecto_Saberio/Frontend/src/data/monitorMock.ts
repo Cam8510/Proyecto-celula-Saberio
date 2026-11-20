@@ -60,8 +60,40 @@ export const initialSchedule: ScheduleSlot[] = [
 ]
 
 export const monitorNotifications: AppNotification[] = [
-  { id: 1, type: 'request', title: 'Nueva solicitud', text: 'Sofía Martínez solicitó monitoría de Cálculo Diferencial', time: 'Hace 10 min' },
-  { id: 2, type: 'warning', title: 'Recordatorio', text: 'Monitoría con Juan Pérez mañana, 2:00 PM', time: 'Hace 1 hora' },
+  {
+    id: 1,
+    type: 'request',
+    title: 'Nueva solicitud de monitoría',
+    text: 'Sofía Martínez está solicitando una monitoría de Cálculo Diferencial.',
+    details:
+      'Sofía Martínez ha solicitado una sesión de monitoría para reforzar sus conocimientos en Cálculo Diferencial.\n\n' +
+      'Materia: Cálculo Diferencial\n' +
+      'Tema: Integrales por partes y aplicaciones\n' +
+      'Objetivo: Preparar parcial del viernes\n' +
+      'Modalidad: Virtual\n' +
+      'Disponibilidad solicitada: Miércoles, 17 de septiembre, 10:00 AM\n\n' +
+      'Mensaje de la estudiante: Tengo dudas con el método de sustitución.\n\n' +
+      'Revisa la solicitud para decidir si deseas aceptarla o rechazarla.',
+    time: 'Hace 10 min',
+  },
+  {
+    id: 2,
+    type: 'warning',
+    title: 'Recordatorio de monitoría',
+    text: 'Tienes una sesión de monitoría programada con Juan Pérez.',
+    details:
+      'Recuerda que tienes una monitoría programada con Juan Pérez. Prepárate para la sesión y revisa los temas que se trabajarán.\n\n' +
+      'Estudiante: Juan Pérez\n' +
+      'Materia: Álgebra Lineal\n' +
+      'Tema: Determinantes y valores propios\n' +
+      'Objetivo: Resolver el taller 4\n' +
+      'Fecha: Jueves, 18 de septiembre\n' +
+      'Hora: 2:00 PM\n' +
+      'Modalidad: Presencial\n' +
+      'Lugar: Biblioteca, piso 3\n\n' +
+      'Procura llegar unos minutos antes para aprovechar el tiempo de la sesión.',
+    time: 'Hace 1 hora',
+  },
 ]
 
 // Calendario de ejemplo: algunos días disponibles y otros bloqueados del mes actual

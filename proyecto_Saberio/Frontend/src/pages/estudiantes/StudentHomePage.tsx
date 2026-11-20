@@ -1,5 +1,5 @@
-
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type {
   Monitor,
   SessionRequestForm,
@@ -10,7 +10,9 @@ import { getSession } from '../../services/authService'
 import { firstName, normalize } from '../../utils/format'
 import { filterMonitors } from '../../utils/search'
 import { useToast } from '../../hooks/useToast'
+
 import './StudentHomePage.css'
+
 
 import {
   initialRequests,
@@ -19,9 +21,10 @@ import {
   studentProfile,
 } from '../../data/studentMock'
 
+
 import DashboardLayout from '../../components/layout/DashboardLayout/DashboardLayout'
 import PageHero from '../../components/layout/PageHero/PageHero'
-import AssistantChat from '../../components/home/AssistantChat/AssistantChat'
+
 
 import Card from '../../components/shared/Card/Card'
 import Avatar from '../../components/shared/Avatar/Avatar'
@@ -30,61 +33,59 @@ import StatusBadge from '../../components/shared/StatusBadge/StatusBadge'
 import EmptyState from '../../components/shared/EmptyState/EmptyState'
 import Toast from '../../components/shared/Toast/Toast'
 
-import SearchFilters from '../../components/estudiante/SearchFilters/SearchFilters'
+
 import MonitorCard from '../../components/estudiante/monitorCard/monitorCard'
 import RequestModal from '../../components/estudiante/RequestModal'
 import ProfileCard from '../../components/estudiante/ProfileCard'
 import ProfileModal from '../../components/estudiante/ProfileModal'
 
-const QUICK_SUBJECTS = [
-  'Cálculo',
-  'Programación',
-  'Álgebra',
-  'Microeconomía',
-]
 
 function StudentHomePage() {
   const user = getSession()
+  const navigate = useNavigate()
   const { message, visible, showToast } = useToast()
 
-  // =========================================
-  // FILTRO DEL ASISTENTE
-  // =========================================
 
+
+  // FILTRO DEL ASISTENTE
   const [assistantFilter, setAssistantFilter] = useState<{
     subject: string
     topic: string | null
   } | null>(null)
 
-  // =========================================
-  // FILTROS MANUALES
-  // =========================================
 
+  // FILTROS MANUALES
   const [query, setQuery] = useState('')
   const [queryTags, setQueryTags] = useState<string[]>([])
   const [modality, setModality] = useState('')
   const [minRating, setMinRating] = useState('')
   const [sort, setSort] = useState('best')
 
-  // =========================================
-  // BÚSQUEDAS MANUALES
-  // =========================================
-
 
   // =========================================
-  // BÚSQUEDAS MANUALES
+  // BUSCAR DESDE EL HERO
   // =========================================
 
-  // Agregar una búsqueda sin eliminar las anteriores.
-  const handleQuerySubmit = (searchValue?: string) => {
+  const handleHeroSearch = (searchValue?: string) => {
     const value = (searchValue ?? query).trim()
 
     if (!value) return
 
+    navigate('/estudiante/buscar-monitoria', {
+      state: {
+        query: value,
+      },
+    })
+  }
+
+
+  // Agregar una búsqueda sin eliminar las anteriores.
+  const handleQuerySubmit = (searchValue?: string) => {
+    const value = (searchValue ?? query).trim()
+    if (!value) return
+
     setQueryTags((previous) =>
-      previous.some(
-        (tag) => normalize(tag) === normalize(value),
-      )
+      previous.some((tag) => normalize(tag) === normalize(value))
         ? previous
         : [...previous, value],
     )
@@ -92,38 +93,15 @@ function StudentHomePage() {
     setQuery('')
   }
 
-  // Eliminar únicamente la etiqueta seleccionada.
-  const handleRemoveQueryTag = (tag: string) => {
-    setQueryTags((previous) =>
-      previous.filter((item) => item !== tag),
-    )
-  }
 
-  // Escribir sin modificar los filtros activos.
-  const handleQueryChange = (value: string) => {
-    setQuery(value)
-  }
-
-  // =========================================
   // RESPUESTA DEL ASISTENTE
-  // =========================================
-
-  const handleStudentMatch = (
-    subject: string,
-    topic: string | null,
-  ) => {
+  const handleStudentMatch = (subject: string, topic: string | null) => {
     setAssistantFilter({ subject, topic })
-
-    // Mostrar la selección del asistente en la barra.
     setQuery(topic || subject)
-
-    // No borrar las etiquetas ni los filtros adicionales.
   }
 
-  // =========================================
-  // LIMPIAR FILTROS
-  // =========================================
 
+  // LIMPIAR FILTROS
   const clearFilters = () => {
     setQuery('')
     setQueryTags([])
@@ -133,35 +111,28 @@ function StudentHomePage() {
     setAssistantFilter(null)
   }
 
-  // =========================================
-  // HORARIOS Y SOLICITUDES
-  // =========================================
 
+  // HORARIOS Y SOLICITUDES
   const [selection, setSelection] = useState<{
     monitorId: number
     slot: string
   } | null>(null)
+
 
   const [requesting, setRequesting] = useState<{
     monitor: Monitor
     slot: string
   } | null>(null)
 
-  // =========================================
-  // PERFIL Y SOLICITUDES
-  // =========================================
 
+  // PERFIL Y SOLICITUDES
   const [profile, setProfile] = useState<StudentProfile>(studentProfile)
   const [editingProfile, setEditingProfile] = useState(false)
   const [requests, setRequests] = useState(initialRequests)
 
-  // =========================================
-  // RESULTADOS DE BÚSQUEDA
-  // =========================================
 
-
+  // RESULTADOS
   const results = useMemo(() => {
-    // Combinar todas las búsquedas confirmadas.
     const manualResults = filterMonitors(monitors, {
       query: queryTags.join(' '),
       modality,
@@ -169,60 +140,38 @@ function StudentHomePage() {
       sort,
     })
 
-    // Si no hay filtro del asistente, devolver resultados manuales.
-    if (!assistantFilter) {
-      return manualResults
-    }
+    if (!assistantFilter) return manualResults
 
-    // Aplicar también materia y tema seleccionados por el asistente.
     return manualResults.filter((monitor) => {
       const sameSubject =
-        normalize(monitor.subject).includes(
-          normalize(assistantFilter.subject),
-        ) ||
-        normalize(assistantFilter.subject).includes(
-          normalize(monitor.subject),
-        )
+        normalize(monitor.subject).includes(normalize(assistantFilter.subject)) ||
+        normalize(assistantFilter.subject).includes(normalize(monitor.subject))
 
       const sameTopic =
         !assistantFilter.topic ||
         monitor.topics.some(
           (topic) =>
-            normalize(topic).includes(
-              normalize(assistantFilter.topic!),
-            ) ||
-            normalize(assistantFilter.topic!).includes(
-              normalize(topic),
-            ),
+            normalize(topic).includes(normalize(assistantFilter.topic!)) ||
+            normalize(assistantFilter.topic!).includes(normalize(topic)),
         )
 
       return sameSubject && sameTopic
     })
-  }, [
-    queryTags,
-    modality,
-    minRating,
-    sort,
-    assistantFilter,
-  ])
+  }, [queryTags, modality, minRating, sort, assistantFilter])
 
 
-  // =========================================
+  // En Inicio mostramos solo tres sugerencias.
+  const suggestedMonitors = results.slice(0, 3)
+
+
   // SELECCIÓN DE HORARIOS
-  // =========================================
-
   const handleSelectSlot = (monitorId: number, slot: string) => {
-    const same =
-      selection?.monitorId === monitorId &&
-      selection.slot === slot
-
+    const same = selection?.monitorId === monitorId && selection.slot === slot
     setSelection(same ? null : { monitorId, slot })
   }
 
-  // =========================================
-  // ENVIAR SOLICITUD
-  // =========================================
 
+  // ENVIAR SOLICITUD
   const handleSubmitRequest = (_data: SessionRequestForm) => {
     if (!requesting) return
 
@@ -238,90 +187,88 @@ function StudentHomePage() {
       ...previous,
     ])
 
-    showToast(
-      `Solicitud enviada a ${requesting.monitor.name} para ${requesting.slot} ✅`,
-    )
 
+    showToast(`Solicitud enviada a ${requesting.monitor.name} para ${requesting.slot} ✅`)
     setRequesting(null)
     setSelection(null)
   }
 
-  // =========================================
-  // RENDERIZADO
-  // =========================================
 
   return (
-    <DashboardLayout
-      role="estudiante"
-      notifications={studentNotifications}
-    >
+    <DashboardLayout role="estudiante" notifications={studentNotifications}>
       <div className="student-page">
-
-        {/* Encabezado del estudiante */}
+        {/* Hero de inicio */}
         <div className="student-hero">
           <PageHero
             greeting={`Hola, ${firstName(user?.name ?? '')} 👋`}
             title="¿Qué quieres estudiar hoy?"
           >
-            <AssistantChat
-              mode="student"
-              onStudentMatch={handleStudentMatch}
-            />
+            <div className="student-home-hero-content">
+              <p className="student-home-hero-description">
+                Encuentra un monitor que te ayude a preparar tus parciales, resolver dudas y reforzar tus materias.
+              </p>
+
+              <form
+                className="student-home-search"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  handleHeroSearch()
+                }}
+              >
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Ej. Integrales por partes, parcial el jueves..."
+                  aria-label="Buscar materia o tema"
+                />
+                <button type="submit" aria-label="Buscar monitoría">
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="20"
+                    height="20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 12h14" />
+                    <path d="m13 6 6 6-6 6" />
+                  </svg>
+                </button>
+              </form>
+            </div>
           </PageHero>
         </div>
 
-        {/* Buscador y filtros manuales */}
-        <div className="student-search">
-          <SearchFilters
-            query={query}
-            onQueryChange={handleQueryChange}
-            onQuerySubmit={handleQuerySubmit}
-            queryTags={queryTags}
-            onRemoveQueryTag={handleRemoveQueryTag}
-            modality={modality}
-            onModalityChange={setModality}
-            minRating={minRating}
-            onMinRatingChange={setMinRating}
-            sort={sort}
-            onSortChange={setSort}
-            quickSubjects={QUICK_SUBJECTS}
-          />
-        </div>
 
         {/* Contenido principal */}
         <div className="main-grid">
-
-          {/* Lista de monitores */}
+          {/* Sugerencias de monitores */}
           <Card
-            title="Monitores para ti"
-            subtitle={`${results.length} monitor${results.length !== 1 ? 'es' : ''}`}
+            title="Sugerencias para ti"
+            subtitle={`${suggestedMonitors.length} sugerencias`}
           >
-
             {/* Filtro activo del asistente */}
             {assistantFilter && (
               <div className="assistant-filter">
                 <div>
                   <span>Resultados del asistente</span>
-
                   <strong>
                     {assistantFilter.subject}
-                    {assistantFilter.topic
-                      ? ` · ${assistantFilter.topic}`
-                      : ''}
+                    {assistantFilter.topic ? ` · ${assistantFilter.topic}` : ''}
                   </strong>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => setAssistantFilter(null)}
-                >
+                <button type="button" onClick={() => setAssistantFilter(null)}>
                   Quitar filtro
                 </button>
               </div>
             )}
 
-            {/* Resultados */}
-            {results.length === 0 ? (
+            {/* Sugerencias */}
+            {suggestedMonitors.length === 0 ? (
               <EmptyState
                 title="No encontramos monitores para eso"
                 message="Prueba con otro tema o modifica los filtros de búsqueda."
@@ -330,24 +277,17 @@ function StudentHomePage() {
               />
             ) : (
               <div className="stack">
-                {results.map((monitor) => (
+                {suggestedMonitors.map((monitor) => (
                   <MonitorCard
                     key={monitor.id}
                     monitor={monitor}
                     selectedSlot={
-                      selection?.monitorId === monitor.id
-                        ? selection.slot
-                        : null
+                      selection?.monitorId === monitor.id ? selection.slot : null
                     }
-                    onSelectSlot={(slot) =>
-                      handleSelectSlot(monitor.id, slot)
-                    }
+                    onSelectSlot={(slot) => handleSelectSlot(monitor.id, slot)}
                     onReserve={() => {
                       if (selection?.monitorId === monitor.id) {
-                        setRequesting({
-                          monitor,
-                          slot: selection.slot,
-                        })
+                        setRequesting({ monitor, slot: selection.slot })
                       }
                     }}
                   />
@@ -356,9 +296,9 @@ function StudentHomePage() {
             )}
           </Card>
 
+
           {/* Panel lateral */}
           <aside className="stack side">
-
             <ProfileCard
               profile={profile}
               onEdit={() => setEditingProfile(true)}
@@ -380,25 +320,19 @@ function StudentHomePage() {
                     subtitle={request.detail}
                     trailing={
                       <StatusBadge
-                        tone={
-                          request.status === 'pending'
-                            ? 'pending'
-                            : 'review'
-                        }
+                        tone={request.status === 'pending' ? 'pending' : 'review'}
                       >
-                        {request.status === 'pending'
-                          ? 'Pendiente'
-                          : 'En revisión'}
+                        {request.status === 'pending' ? 'Pendiente' : 'En revisión'}
                       </StatusBadge>
                     }
                   />
                 ))}
               </div>
             </Card>
-
           </aside>
         </div>
       </div>
+
 
       {/* Modal de solicitud */}
       {requesting && (
@@ -409,6 +343,7 @@ function StudentHomePage() {
           onSubmit={handleSubmitRequest}
         />
       )}
+
 
       {/* Modal de perfil */}
       {editingProfile && (
@@ -427,5 +362,6 @@ function StudentHomePage() {
     </DashboardLayout>
   )
 }
+
 
 export default StudentHomePage

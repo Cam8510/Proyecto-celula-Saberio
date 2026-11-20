@@ -5,4 +5,6 @@ export interface AppNotification {
   text: string
   time: string
   href?: string
+  read?: boolean
+  details?: string
 }
