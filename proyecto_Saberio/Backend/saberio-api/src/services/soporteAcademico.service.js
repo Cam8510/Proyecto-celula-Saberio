@@ -6,6 +6,22 @@ const HttpError = require('../utils/HttpError');
 const path = require('path');
 const fs = require('fs');
 
+function verificarAccesoSoporte(soporte, usuario) {
+  const esPropietario =
+    soporte.monitor.toString() === usuario.id;
+
+  const esAdministrador =
+    usuario.roles.includes('admin');
+
+  if (!esPropietario && !esAdministrador) {
+    throw new HttpError(
+      403,
+      'No tienes permisos para acceder a este soporte',
+      'ACCESO_DENEGADO'
+    );
+  }
+}
+
 async function crear(
   idMonitor,
   datos,
@@ -82,29 +98,7 @@ async function listarPropios(idMonitor) {
   return soportes;
 }
 
-async function obtenerPorId(idSoporte) {
-  const soporte = await SoporteAcademico.findById(
-    idSoporte
-  )
-    .populate('monitor', 'nombre')
-    .populate('materia', 'nombre codigo');
-
-  if (!soporte) {
-    throw new HttpError(
-      404,
-      'El soporte no existe',
-      'SOPORTE_NO_ENCONTRADO'
-    );
-  }
-
-  return soporte;
-}
-
-async function descargar(
-  idSoporte,
-  idUsuario,
-  rolUsuario
-) {
+async function obtenerPorId(idSoporte, usuario) {
   const soporte = await SoporteAcademico.findById(
     idSoporte
   );
@@ -117,30 +111,96 @@ async function descargar(
     );
   }
 
-  const esPropietario =
-    soporte.monitor.toString() === idUsuario;
+  verificarAccesoSoporte(soporte, usuario);
 
-  const esAdministrador =
-    rolUsuario === 'admin';
+  await soporte.populate([
+    {
+      path: 'monitor',
+      select: 'nombre',
+    },
+    {
+      path: 'materia',
+      select: 'nombre codigo',
+    },
+  ]);
 
-  if (!esPropietario && !esAdministrador) {
+  const resultado = soporte.toJSON();
+
+  delete resultado.rutaArchivo;
+  delete resultado.nombreArchivo;
+
+  return resultado;
+}
+
+async function descargar(idSoporte, usuario) {
+  const soporte = await SoporteAcademico.findById(
+    idSoporte
+  );
+
+  if (!soporte) {
     throw new HttpError(
-      403,
-      'No puedes descargar este soporte',
-      'ACCESO_DENEGADO'
+      404,
+      'El soporte no existe',
+      'SOPORTE_NO_ENCONTRADO'
     );
   }
+
+  verificarAccesoSoporte(soporte, usuario);
+
+  const carpetaSoportes = path.resolve(
+    process.cwd(),
+    'uploads',
+    'soportes'
+  );
 
   const rutaAbsoluta = path.resolve(
     soporte.rutaArchivo
   );
 
-  if (!fs.existsSync(rutaAbsoluta)) {
+  const rutaRelativa = path.relative(
+    carpetaSoportes,
+    rutaAbsoluta
+  );
+
+  const estaFueraDeCarpeta =
+    rutaRelativa === '' ||
+    rutaRelativa === '..' ||
+    rutaRelativa.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(rutaRelativa);
+
+  if (estaFueraDeCarpeta) {
     throw new HttpError(
       404,
       'El archivo no está disponible',
       'ARCHIVO_NO_ENCONTRADO'
     );
+  }
+
+  try {
+    const informacion = await fs.promises.stat(
+      rutaAbsoluta
+    );
+
+    if (!informacion.isFile()) {
+      throw new HttpError(
+        404,
+        'El archivo no está disponible',
+        'ARCHIVO_NO_ENCONTRADO'
+      );
+    }
+  } catch (error) {
+    if (
+      error.code === 'ENOENT' ||
+      error.code === 'ENOTDIR'
+    ) {
+      throw new HttpError(
+        404,
+        'El archivo no está disponible',
+        'ARCHIVO_NO_ENCONTRADO'
+      );
+    }
+
+    throw error;
   }
 
   return {

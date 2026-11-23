@@ -33,7 +33,8 @@ async function listarPropios(req, res) {
 
 async function obtenerPorId(req, res) {
   const soporte = await servicio.obtenerPorId(
-    req.params.id
+    req.params.id,
+    req.usuario
   );
 
   res.status(200).json({
@@ -41,18 +42,26 @@ async function obtenerPorId(req, res) {
   });
 }
 
-async function descargar(req, res) {
-  const { soporte, rutaAbsoluta } =
-    await servicio.descargar(
-      req.params.id,
-      req.usuario.id,
-      req.usuario.rol
-    );
+async function descargar(req, res, next) {
+  try {
+    const { soporte, rutaAbsoluta } =
+      await servicio.descargar(
+        req.params.id,
+        req.usuario
+      );
 
-  res.download(
-    rutaAbsoluta,
-    soporte.nombreOriginal
-  );
+    res.download(
+      rutaAbsoluta,
+      soporte.nombreOriginal,
+      (error) => {
+        if (error) {
+          next(error);
+        }
+      }
+    );
+  } catch (error) {
+    next(error);
+  }
 }
 
 async function revisar(req, res) {
