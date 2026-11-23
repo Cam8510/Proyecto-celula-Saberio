@@ -14,6 +14,7 @@ const rutasDisponibilidad = require('./src/routes/disponibilidad.routes');
 const rutasPublicacion = require('./src/routes/publicacion.routes');
 const rutasBusqueda = require('./src/routes/busqueda.routes');
 const rutasSoporteAcademico = require('./src/routes/soporteAcademico.routes');
+const rutasDocs = require('./src/routes/docs.routes');
 
 const {
   rutaNoEncontrada,
@@ -23,9 +24,9 @@ const {
 const app = express();
 
 app.disable('x-powered-by');
-
 app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
+app.use('/api/docs', rutasDocs);
 
 app.get('/api/salud', (req, res) => {
   const estados = {
@@ -34,13 +35,10 @@ app.get('/api/salud', (req, res) => {
     2: 'conectando',
     3: 'desconectando',
   };
-
   res.status(200).json({
     estado: 'ok',
     servicio: 'Saberio API',
-    baseDeDatos:
-      estados[mongoose.connection.readyState] ||
-      'desconocido',
+    baseDeDatos: estados[mongoose.connection.readyState] || 'desconocido',
   });
 });
 
