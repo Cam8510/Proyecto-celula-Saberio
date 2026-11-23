@@ -1,12 +1,27 @@
+const crypto = require('crypto');
 const Usuario = require('../../models/usuario.model');
 const HttpError = require('../utils/HttpError');
-
 const {
   generarPasswordHash,
+  comprobarPassword,
 } = require('./password.service');
 
+const INTENTOS_MAXIMOS_LOGIN = 5;
+const CODIGO_RECUPERACION_EXPIRACION_MINUTOS = 15;
+
+function construirPerfilPublico(usuario) {
+  return {
+    id: usuario._id.toString(),
+    nombre: usuario.nombre,
+    correo: usuario.correo,
+    roles: [...usuario.roles],
+    correoVerificado: usuario.correoVerificado,
+    estadoCuenta: usuario.estadoCuenta,
+    acreditacionMonitor: usuario.acreditacionMonitor,
+  };
+}
+
 async function registrarCuenta({ nombre, correo, password, rol }) {
-  // Protección adicional: no confiar solo en el middleware.
   if (rol !== 'estudiante' && rol !== 'monitor') {
     throw new HttpError(
       400,
@@ -15,8 +30,6 @@ async function registrarCuenta({ nombre, correo, password, rol }) {
     );
   }
 
-  // En esta etapa esperamos la inicialización del modelo
-  // y de su índice único antes de insertar.
   await Usuario.init();
 
   const existe = await Usuario.exists({ correo });
@@ -38,19 +51,13 @@ async function registrarCuenta({ nombre, correo, password, rol }) {
       nombre,
       correo,
       passwordHash,
-
-      // El cliente envía un solo rol público por registro.
       roles: [rol],
-
-      // Estos valores los establece el servidor.
       correoVerificado: false,
       correoVerificadoEn: null,
       estadoCuenta: 'habilitada',
       acreditacionMonitor: 'no_solicitada',
     });
   } catch (error) {
-    // Dos peticiones simultáneas pueden superar exists().
-    // El índice único es la protección definitiva.
     if (error.code === 11000) {
       throw new HttpError(
         409,
@@ -62,14 +69,193 @@ async function registrarCuenta({ nombre, correo, password, rol }) {
     throw error;
   }
 
-  // Respuesta explícita: nunca devolver password ni passwordHash.
+  return construirPerfilPublico(usuario);
+}
+
+async function iniciarSesion({ correo, contrasena }) {
+  const usuario = await Usuario.findOne({ correo }).select(
+    '+passwordHash'
+  );
+
+  if (!usuario) {
+    throw new HttpError(
+      401,
+      'Credenciales inválidas',
+      'CREDENCIALES_INVALIDAS'
+    );
+  }
+
+  const contrasenaValida = await comprobarPassword(
+    contrasena,
+    usuario.passwordHash
+  );
+
+  if (!contrasenaValida) {
+    throw new HttpError(
+      401,
+      'Credenciales inválidas',
+      'CREDENCIALES_INVALIDAS'
+    );
+  }
+
+  if (!usuario.correoVerificado) {
+    throw new HttpError(
+      403,
+      'Debes verificar tu correo institucional antes de iniciar sesión',
+      'CORREO_NO_VERIFICADO'
+    );
+  }
+
+  if (usuario.estadoCuenta !== 'habilitada') {
+    throw new HttpError(
+      403,
+      'Tu cuenta no está habilitada para acceder a la plataforma',
+      'CUENTA_NO_HABILITADA'
+    );
+  }
+
+  return construirPerfilPublico(usuario);
+}
+
+async function obtenerPerfil(idUsuario) {
+  const usuario = await Usuario.findById(idUsuario);
+
+  if (!usuario) {
+    throw new HttpError(
+      404,
+      'No se encontró la cuenta solicitada',
+      'USUARIO_NO_ENCONTRADO'
+    );
+  }
+
+  return construirPerfilPublico(usuario);
+}
+
+async function actualizarPerfil(idUsuario, datos) {
+  const camposPermitidos = ['nombre'];
+
+  const actualizaciones = {};
+
+  for (const campo of camposPermitidos) {
+    if (datos[campo] !== undefined) {
+      actualizaciones[campo] = datos[campo];
+    }
+  }
+
+  if (Object.keys(actualizaciones).length === 0) {
+    throw new HttpError(
+      400,
+      'No se enviaron campos válidos para actualizar',
+      'ACTUALIZACION_INVALIDA'
+    );
+  }
+
+  const usuario = await Usuario.findByIdAndUpdate(
+    idUsuario,
+    actualizaciones,
+    {
+      new: true,
+      runValidators: true,
+    }
+  );
+
+  if (!usuario) {
+    throw new HttpError(
+      404,
+      'No se encontró la cuenta solicitada',
+      'USUARIO_NO_ENCONTRADO'
+    );
+  }
+
+  return construirPerfilPublico(usuario);
+}
+
+async function solicitarRecuperacion({ correo }) {
+  const usuario = await Usuario.findOne({ correo });
+
+  if (!usuario) {
+    return {
+      mensaje:
+        'Si el correo está registrado, recibirás un código para recuperar tu contraseña.',
+    };
+  }
+
+  const codigo = crypto
+    .randomInt(100000, 1000000)
+    .toString()
+    .padStart(6, '0');
+
+  const expiracion = new Date(
+    Date.now() + CODIGO_RECUPERACION_EXPIRACION_MINUTOS * 60 * 1000
+  );
+
+  usuario.recuperacionContrasena = {
+    codigoHash: await generarPasswordHash(codigo),
+    expiracion,
+    utilizado: false,
+  };
+
+  await usuario.save();
+
   return {
-    id: usuario._id.toString(),
-    nombre: usuario.nombre,
-    correo: usuario.correo,
-    roles: [...usuario.roles],
-    correoVerificado: usuario.correoVerificado,
+    mensaje:
+      'Si el correo está registrado, recibirás un código para recuperar tu contraseña.',
+    codigoDesarrollo: codigo,
   };
 }
 
-module.exports = { registrarCuenta };
+async function restablecerContrasena({
+  correo,
+  codigo,
+  nuevaContrasena,
+}) {
+  const usuario = await Usuario.findOne({ correo }).select(
+    '+recuperacionContrasena +passwordHash'
+  );
+
+  if (
+    !usuario ||
+    !usuario.recuperacionContrasena ||
+    usuario.recuperacionContrasena.utilizado ||
+    usuario.recuperacionContrasena.expiracion < new Date()
+  ) {
+    throw new HttpError(
+      400,
+      'El código de recuperación no es válido o ha expirado',
+      'CODIGO_RECUPERACION_INVALIDO'
+    );
+  }
+
+  const codigoValido = await comprobarPassword(
+    codigo,
+    usuario.recuperacionContrasena.codigoHash
+  );
+
+  if (!codigoValido) {
+    throw new HttpError(
+      400,
+      'El código de recuperación no es válido o ha expirado',
+      'CODIGO_RECUPERACION_INVALIDO'
+    );
+  }
+
+  const passwordHash = await generarPasswordHash(nuevaContrasena);
+
+  usuario.passwordHash = passwordHash;
+  usuario.recuperacionContrasena = undefined;
+
+  await usuario.save();
+
+  return {
+    mensaje: 'Tu contraseña fue actualizada correctamente.',
+  };
+}
+
+module.exports = {
+  registrarCuenta,
+  iniciarSesion,
+  obtenerPerfil,
+  actualizarPerfil,
+  solicitarRecuperacion,
+  restablecerContrasena,
+};

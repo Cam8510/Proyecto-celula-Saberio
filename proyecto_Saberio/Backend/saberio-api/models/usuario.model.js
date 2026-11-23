@@ -62,6 +62,10 @@ const usuarioSchema = new Schema(
         },
       ],
     },
+    notificacionesCorreo: {
+      type: Boolean,
+      default: true,
+    },
 
     correoVerificado: {
       type: Boolean,
@@ -94,6 +98,24 @@ const usuarioSchema = new Schema(
         'rechazada',
       ],
       default: 'no_solicitada',
+    },
+    recuperacionContrasena: {
+      type: {
+        codigoHash: {
+          type: String,
+          required: true,
+        },
+        expiracion: {
+          type: Date,
+          required: true,
+        },
+        utilizado: {
+          type: Boolean,
+          default: false,
+        },
+      },
+      default: undefined,
+      select: false,
     },
   },
   {
