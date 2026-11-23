@@ -1,7 +1,14 @@
-const { obtenerClienteMicrosoft, MICROSOFT_SCOPES } = require('../../config/microsoft');
-const { obtenerSesion } = require('./microsoftSesion.service');
+const {
+  obtenerConfiguracionMicrosoft,
+} = require('../../config/microsoft');
 
-const GRAPH_SEND_MAIL_URL = 'https://graph.microsoft.com/v1.0/me/sendMail';
+const {
+  obtenerSesion,
+} = require('./microsoftSesion.service');
+
+const GRAPH_SEND_MAIL_URL =
+  'https://graph.microsoft.com/v1.0/me/sendMail';
+
 const TIMEOUT_MS = 30000;
 
 function crearError(mensaje, codigo) {
@@ -12,25 +19,49 @@ function crearError(mensaje, codigo) {
 
 function normalizarDestinatario(correo) {
   if (typeof correo !== 'string') {
-    throw crearError('Destinatario inválido.', 'DESTINATARIO_INVALIDO');
+    throw crearError(
+      'Destinatario inválido.',
+      'DESTINATARIO_INVALIDO',
+    );
   }
 
   const destinatario = correo.trim().toLowerCase();
 
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(destinatario)) {
-    throw crearError('Destinatario inválido.', 'DESTINATARIO_INVALIDO');
+  if (
+    destinatario.length > 254 ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(destinatario)
+  ) {
+    throw crearError(
+      'Destinatario inválido.',
+      'DESTINATARIO_INVALIDO',
+    );
   }
 
   return destinatario;
 }
 
 function construirMensaje({ destinatario, asunto, texto }) {
-  if (typeof asunto !== 'string' || asunto.trim().length === 0) {
-    throw crearError('Asunto inválido.', 'ASUNTO_INVALIDO');
+  if (
+    typeof asunto !== 'string' ||
+    asunto.trim().length === 0 ||
+    asunto.length > 200 ||
+    /[\r\n]/.test(asunto)
+  ) {
+    throw crearError(
+      'Asunto inválido.',
+      'ASUNTO_INVALIDO',
+    );
   }
 
-  if (typeof texto !== 'string' || texto.trim().length === 0) {
-    throw crearError('Contenido del correo inválido.', 'CONTENIDO_INVALIDO');
+  if (
+    typeof texto !== 'string' ||
+    texto.trim().length === 0 ||
+    texto.length > 20000
+  ) {
+    throw crearError(
+      'Contenido del correo inválido.',
+      'CONTENIDO_INVALIDO',
+    );
   }
 
   return {
@@ -52,40 +83,49 @@ function construirMensaje({ destinatario, asunto, texto }) {
   };
 }
 
-async function enviarCorreo({ destinatario, asunto, texto }) {
-  const correoDestinatario = normalizarDestinatario(destinatario);
-  const mensaje = construirMensaje({ destinatario: correoDestinatario, asunto, texto });
+async function enviarCorreo({
+  destinatario,
+  asunto,
+  texto,
+} = {}) {
+  const correoDestinatario =
+    normalizarDestinatario(destinatario);
 
-  const cliente = obtenerClienteMicrosoft();
+  const mensaje = construirMensaje({
+    destinatario: correoDestinatario,
+    asunto,
+    texto,
+  });
 
-  let token;
+  const sesion = obtenerSesion();
 
-  try {
-    const resultado = await cliente.acquireTokenSilent({
-      scopes: MICROSOFT_SCOPES,
-      account: undefined,
-    });
-
-    token = resultado?.accessToken;
-  } catch {
-    token = undefined;
-  }
-
-  if (!token) {
+  if (!sesion) {
     throw crearError(
-      'No hay una sesión autorizada de Microsoft disponible.',
+      'No hay una sesión Microsoft vigente disponible.',
       'SESION_MICROSOFT_AUSENTE',
     );
   }
 
+  const { remitente } = obtenerConfiguracionMicrosoft();
+
+  if (sesion.cuenta.username !== remitente) {
+    throw crearError(
+      'La cuenta autorizada no coincide con el remitente configurado.',
+      'CUENTA_REMITENTE_DISTINTA',
+    );
+  }
+
   const controlador = new AbortController();
-  const temporizador = setTimeout(() => controlador.abort(), TIMEOUT_MS);
+
+  const temporizador = setTimeout(() => {
+    controlador.abort();
+  }, TIMEOUT_MS);
 
   try {
     const respuesta = await fetch(GRAPH_SEND_MAIL_URL, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${sesion.token.accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(mensaje),
@@ -94,7 +134,7 @@ async function enviarCorreo({ destinatario, asunto, texto }) {
 
     if (respuesta.status !== 202) {
       throw crearError(
-        'Microsoft rechazó la solicitud de envío.',
+        'Microsoft no aceptó la solicitud de envío.',
         'ENVIO_RECHAZADO',
       );
     }
@@ -110,13 +150,13 @@ async function enviarCorreo({ destinatario, asunto, texto }) {
 
     if (error?.name === 'AbortError') {
       throw crearError(
-        'Microsoft tardó demasiado en responder.',
+        'Se agotó el tiempo de espera. No se pudo confirmar la aceptación del envío.',
         'TIEMPO_AGOTADO',
       );
     }
 
     throw crearError(
-      'No fue posible enviar el correo.',
+      'No se pudo confirmar el resultado del envío.',
       'ERROR_ENVIO_CORREO',
     );
   } finally {
@@ -124,10 +164,25 @@ async function enviarCorreo({ destinatario, asunto, texto }) {
   }
 }
 
-async function enviarCodigoVerificacion({ destinatario, codigo, minutosVigencia }) {
-  const minutos = Number.parseInt(minutosVigencia, 10);
+async function enviarCodigoVerificacion({
+  destinatario,
+  codigo,
+  minutosVigencia,
+} = {}) {
+  if (
+    typeof codigo !== 'string' ||
+    !/^\d{6}$/.test(codigo)
+  ) {
+    throw crearError(
+      'El código de verificación no tiene el formato esperado.',
+      'FORMATO_CODIGO_INVALIDO',
+    );
+  }
 
-  if (!Number.isInteger(minutos) || minutos <= 0) {
+  if (
+    !Number.isSafeInteger(minutosVigencia) ||
+    minutosVigencia <= 0
+  ) {
     throw crearError(
       'Vigencia del código inválida.',
       'VIGENCIA_INVALIDA',
@@ -142,7 +197,10 @@ async function enviarCodigoVerificacion({ destinatario, codigo, minutosVigencia 
       '',
       `Tu código de verificación para Saberio es: ${codigo}`,
       '',
-      `Este código vence en ${minutos} minutos.`,
+      `Al solicitar el envío, quedaban aproximadamente ${minutosVigencia} minutos de vigencia.`,
+      'La entrega puede tardar. Si el código ya venció, solicita uno nuevo.',
+      'No compartas este código con otras personas.',
+      '',
       'Si no solicitaste este código, ignora este mensaje.',
       '',
       'Equipo Saberio',

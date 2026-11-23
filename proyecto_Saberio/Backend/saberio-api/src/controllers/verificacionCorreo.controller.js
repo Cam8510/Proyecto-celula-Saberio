@@ -10,9 +10,7 @@ const {
 } = require('../services/correoMicrosoft.service');
 
 const MENSAJE_SOLICITUD =
-  'Si el correo corresponde a una cuenta elegible, enviamos un código de verificación.';
-
-const MENSAJE_CONFIRMACION = 'Correo verificado correctamente.';
+  'Si el correo corresponde a una cuenta elegible, se solicitará el envío de un código de verificación.';
 
 function normalizarCorreo(valor) {
   if (typeof valor !== 'string') {
@@ -42,7 +40,7 @@ function normalizarCodigo(valor) {
   return codigo;
 }
 
-async function solicitarVerificacion(req, res) {
+async function solicitarVerificacion(req, res, next) {
   try {
     const correo = normalizarCorreo(req.body?.correo);
 
@@ -52,57 +50,46 @@ async function solicitarVerificacion(req, res) {
       });
     }
 
-    const usuario = await Usuario.findOne({
-      correo,
-      correoVerificado: false,
-      estadoCuenta: 'habilitada',
-    });
+    const emision = await emitirCodigo(correo);
 
-    // Diagnóstico temporal: no imprime datos personales ni secretos.
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(
-        '[verificacion] usuario elegible:',
-        Boolean(usuario),
-      );
-    }
-
-    if (!usuario) {
+    if (!emision) {
       return res.status(200).json({
         mensaje: MENSAJE_SOLICITUD,
       });
     }
 
-    const emision = await emitirCodigo(correo);
+    const venceEn = new Date(emision.venceEn).getTime();
+    const restanteMs = venceEn - Date.now();
+
+    if (!Number.isFinite(venceEn) || restanteMs <= 0) {
+      return res.status(503).json({
+        error: 'No fue posible preparar el código. Intenta más tarde.',
+      });
+    }
+
+    const minutosVigencia = Math.ceil(restanteMs / 60000);
 
     await enviarCodigoVerificacion({
-      destinatario: correo,
+      destinatario: emision.destinatario,
       codigo: emision.codigo,
-      minutosVigencia: 10,
+      minutosVigencia,
     });
 
     return res.status(200).json({
       mensaje: MENSAJE_SOLICITUD,
     });
   } catch (error) {
-    if (error?.codigo === 'REENVIO_NO_PERMITIDO') {
-      return res.status(429).json({
-        error: 'Debes esperar antes de solicitar un nuevo código.',
-      });
-    }
-
     if (error?.codigo === 'SESION_MICROSOFT_AUSENTE') {
       return res.status(503).json({
         error: 'El servicio de correo no está disponible temporalmente.',
       });
     }
 
-    return res.status(500).json({
-      error: 'No fue posible procesar la solicitud.',
-    });
+    return next(error);
   }
 }
 
-async function confirmarVerificacion(req, res) {
+async function confirmarVerificacion(req, res, next) {
   try {
     const correo = normalizarCorreo(req.body?.correo);
     const codigo = normalizarCodigo(req.body?.codigo);
@@ -113,36 +100,16 @@ async function confirmarVerificacion(req, res) {
       });
     }
 
-    const resultado = await verificarCodigo({
+    await verificarCodigo({
       correo,
       codigo,
     });
 
-    if (!resultado.verificado) {
-      return res.status(400).json({
-        error: 'Código inválido o expirado.',
-      });
-    }
-
     return res.status(200).json({
-      mensaje: MENSAJE_CONFIRMACION,
+      mensaje: 'Correo verificado correctamente.',
     });
   } catch (error) {
-    if (error?.codigo === 'INTENTOS_AGOTADOS') {
-      return res.status(429).json({
-        error: 'Has superado el número de intentos. Solicita un nuevo código.',
-      });
-    }
-
-    if (error?.codigo === 'CODIGO_EXPIRADO') {
-      return res.status(400).json({
-        error: 'El código ha expirado. Solicita uno nuevo.',
-      });
-    }
-
-    return res.status(500).json({
-      error: 'No fue posible verificar el código.',
-    });
+    return next(error);
   }
 }
 
