@@ -2,15 +2,26 @@ const mongoose = require('mongoose');
 
 mongoose.set('bufferCommands', false);
 
-async function conectarBaseDeDatos(uri) {
-  await mongoose.connect(uri, {
-    dbName: 'saberio',
-    serverSelectionTimeoutMS: 10000,
-  });
+let conexionPromise;
 
-  console.log(
-    `Conectado a MongoDB Atlas: base "${mongoose.connection.name}"`
-  );
+async function conectarBaseDeDatos(uri) {
+  if (!conexionPromise) {
+    conexionPromise = mongoose
+      .connect(uri, {
+        dbName: 'saberio',
+        serverSelectionTimeoutMS: 10000,
+      })
+      .catch((error) => {
+        conexionPromise = undefined;
+        throw error;
+      });
+  }
+
+  await conexionPromise;
+
+  return mongoose.connection;
 }
 
-module.exports = { conectarBaseDeDatos };
+module.exports = {
+  conectarBaseDeDatos,
+};

@@ -1,5 +1,6 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
+const mongoose = require('mongoose');
 
 const authRouter = require('./src/routes/auth.routes');
 const rutasVerificacionCorreo = require('./src/routes/verificacionCorreo.routes');
@@ -27,9 +28,19 @@ app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
 
 app.get('/api/salud', (req, res) => {
+  const estados = {
+    0: 'desconectado',
+    1: 'conectado',
+    2: 'conectando',
+    3: 'desconectando',
+  };
+
   res.status(200).json({
     estado: 'ok',
     servicio: 'Saberio API',
+    baseDeDatos:
+      estados[mongoose.connection.readyState] ||
+      'desconocido',
   });
 });
 
