@@ -41,6 +41,7 @@ async function crearMonitorAprobado() {
     enfoqueEnsenanza:
       'Explico con ejemplos paso a paso y refuerzo los conceptos con ejercicios.',
     materiasOfrecidas: [materia._id],
+    materiasAcreditadas: [materia._id],
     tarifaPorHora: 25000,
     modalidades: ['Virtual'],
     disponibilidadHoraria:
@@ -399,4 +400,46 @@ test('DELETE /api/publicaciones/:id - elimina una publicación', async () => {
     respuesta.body.mensaje,
     'Publicación eliminada correctamente'
   );
+});
+
+test('POST /api/publicaciones - rechaza materia ofrecida pero no acreditada', async () => {
+  const { monitor, materia } =
+    await crearMonitorAprobado();
+
+  await PerfilMonitor.updateOne(
+    {
+      usuario: monitor._id,
+    },
+    {
+      $set: {
+        materiasAcreditadas: [],
+      },
+    }
+  );
+
+  const cookie = await iniciarSesion(
+    'monitor@urosario.edu.co'
+  );
+
+  const respuesta = await request(app)
+    .post('/api/publicaciones')
+    .set('Cookie', cookie)
+    .send(
+      datosPublicacionValidos(
+        materia._id.toString()
+      )
+    );
+
+  assert.equal(respuesta.status, 403);
+  assert.equal(
+    respuesta.body.error.codigo,
+    'MONITOR_NO_ACREDITADO'
+  );
+
+  const totalPublicaciones =
+    await Publicacion.countDocuments({
+      monitor: monitor._id,
+    });
+
+  assert.equal(totalPublicaciones, 0);
 });

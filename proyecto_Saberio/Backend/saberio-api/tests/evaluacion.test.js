@@ -451,3 +451,85 @@ test('GET /api/evaluaciones/monitor/:id/promedio - calcula el promedio', async (
     1
   );
 });
+test('POST /api/evaluaciones - rechaza estudiante ajeno a la sesión', async () => {
+  const estudiante = await crearUsuario({
+    nombre: 'Sofia Martinez',
+    correo: 'sofia.martinez@urosario.edu.co',
+    roles: ['estudiante'],
+  });
+
+  const otroEstudiante = await crearUsuario({
+    nombre: 'Otro Estudiante',
+    correo: 'otro.estudiante@urosario.edu.co',
+    roles: ['estudiante'],
+  });
+
+  const monitor = await crearUsuario({
+    nombre: 'Monitor Prueba',
+    correo: 'monitor@urosario.edu.co',
+    roles: ['monitor'],
+  });
+
+  const materia = await crearMateria();
+
+  const sesion = await crearSesionCompletada(
+    estudiante,
+    monitor,
+    materia
+  );
+
+  const cookieOtroEstudiante =
+    await iniciarSesion(
+      'otro.estudiante@urosario.edu.co'
+    );
+
+  const respuesta = await request(app)
+    .post('/api/evaluaciones')
+    .set('Cookie', cookieOtroEstudiante)
+    .send({
+      sesion: sesion._id.toString(),
+      calificacion: 5,
+      comentario:
+        'Intento de evaluar una sesión ajena.',
+    });
+
+  assert.equal(respuesta.status, 403);
+  assert.equal(
+    respuesta.body.error.codigo,
+    'ACCESO_DENEGADO'
+  );
+
+  const totalEvaluaciones =
+    await Evaluacion.countDocuments();
+
+  assert.equal(totalEvaluaciones, 0);
+});
+test('GET /api/evaluaciones/monitor/:id/promedio - devuelve promedio vacío sin evaluaciones', async () => {
+  const monitor = await crearUsuario({
+    nombre: 'Monitor Sin Evaluaciones',
+    correo:
+      'monitor.sin.evaluaciones@urosario.edu.co',
+    roles: ['monitor'],
+  });
+
+  const cookie = await iniciarSesion(
+    'monitor.sin.evaluaciones@urosario.edu.co'
+  );
+
+  const respuesta = await request(app)
+    .get(
+      `/api/evaluaciones/monitor/${monitor._id}/promedio`
+    )
+    .set('Cookie', cookie);
+
+  assert.equal(respuesta.status, 200);
+  assert.equal(
+    respuesta.body.evaluacion.promedio,
+    null
+  );
+  assert.equal(
+    respuesta.body.evaluacion
+      .totalEvaluaciones,
+    0
+  );
+});

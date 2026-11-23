@@ -445,3 +445,254 @@ test('DELETE /api/soportes/:id - elimina un soporte pendiente', async () => {
     'Soporte eliminado correctamente'
   );
 });
+test('PATCH /api/soportes/:id/revision - acredita la materia al aprobar el soporte', async () => {
+  const { monitor, materia } =
+    await crearMonitorAprobado();
+
+  const soporte = await SoporteAcademico.create({
+    monitor: monitor._id,
+    materia: materia._id,
+    tipoDocumento: 'Soporte académico',
+    nombreOriginal: 'soporte.pdf',
+    nombreArchivo: 'archivo-prueba.pdf',
+    rutaArchivo: path.join(
+      carpetaPruebas,
+      'archivo-prueba.pdf'
+    ),
+    tipoMime: 'application/pdf',
+    tamanoBytes: 1024,
+  });
+
+  const cookie = await crearAdministrador();
+
+  const respuesta = await request(app)
+    .patch(
+      `/api/soportes/${soporte._id}/revision`
+    )
+    .set('Cookie', cookie)
+    .send({
+      estado: 'Aprobado',
+      observacionesAdmin: '',
+    });
+
+  assert.equal(respuesta.status, 200);
+  assert.equal(
+    respuesta.body.soporte.estado,
+    'Aprobado'
+  );
+
+  const perfil = await PerfilMonitor.findOne({
+    usuario: monitor._id,
+  });
+
+  assert.deepEqual(
+    perfil.materiasAcreditadas.map(String),
+    [materia._id.toString()]
+  );
+});
+
+test('PATCH /api/soportes/:id/revision - retira la materia al rechazar el soporte', async () => {
+  const { monitor, materia } =
+    await crearMonitorAprobado();
+
+  await PerfilMonitor.updateOne(
+    {
+      usuario: monitor._id,
+    },
+    {
+      $addToSet: {
+        materiasAcreditadas: materia._id,
+      },
+    }
+  );
+
+  const soporte = await SoporteAcademico.create({
+    monitor: monitor._id,
+    materia: materia._id,
+    tipoDocumento: 'Soporte académico',
+    nombreOriginal: 'soporte.pdf',
+    nombreArchivo: 'archivo-prueba.pdf',
+    rutaArchivo: path.join(
+      carpetaPruebas,
+      'archivo-prueba.pdf'
+    ),
+    tipoMime: 'application/pdf',
+    tamanoBytes: 1024,
+  });
+
+  const cookie = await crearAdministrador();
+
+  const respuesta = await request(app)
+    .patch(
+      `/api/soportes/${soporte._id}/revision`
+    )
+    .set('Cookie', cookie)
+    .send({
+      estado: 'Rechazado',
+      observacionesAdmin:
+        'El documento no acredita la materia.',
+    });
+
+  assert.equal(respuesta.status, 200);
+  assert.equal(
+    respuesta.body.soporte.estado,
+    'Rechazado'
+  );
+
+  const perfil = await PerfilMonitor.findOne({
+    usuario: monitor._id,
+  });
+
+  assert.deepEqual(
+    perfil.materiasAcreditadas.map(String),
+    []
+  );
+});
+test('GET /api/soportes/:id - rechaza soporte ajeno a un monitor', async () => {
+  const { monitor, materia } =
+    await crearMonitorAprobado();
+
+  const passwordHash =
+    await generarPasswordHash('Password123');
+
+  const otroMonitor =
+    await Usuario.create({
+      nombre: 'Otro Monitor',
+      correo:
+        'otro.monitor@urosario.edu.co',
+      passwordHash,
+      roles: ['monitor'],
+      correoVerificado: true,
+      estadoCuenta: 'habilitada',
+    });
+
+  const soporte =
+    await SoporteAcademico.create({
+      monitor: monitor._id,
+      materia: materia._id,
+      tipoDocumento:
+        'Soporte académico',
+      nombreOriginal: 'soporte.pdf',
+      nombreArchivo:
+        'archivo-prueba.pdf',
+      rutaArchivo: path.join(
+        carpetaPruebas,
+        'archivo-prueba.pdf'
+      ),
+      tipoMime: 'application/pdf',
+      tamanoBytes: 1024,
+    });
+
+  const cookie = await iniciarSesion(
+    'otro.monitor@urosario.edu.co'
+  );
+
+  const respuesta = await request(app)
+    .get(`/api/soportes/${soporte._id}`)
+    .set('Cookie', cookie);
+
+  assert.equal(respuesta.status, 403);
+  assert.equal(
+    respuesta.body.error.codigo,
+    'ACCESO_DENEGADO'
+  );
+
+  assert.ok(
+    !respuesta.body.soporte
+  );
+});
+
+test('GET /api/soportes/:id/descargar - rechaza descarga ajena a un monitor', async () => {
+  const { monitor, materia } =
+    await crearMonitorAprobado();
+
+  const passwordHash =
+    await generarPasswordHash('Password123');
+
+  await Usuario.create({
+    nombre: 'Otro Monitor',
+    correo:
+      'otro.monitor@urosario.edu.co',
+    passwordHash,
+    roles: ['monitor'],
+    correoVerificado: true,
+    estadoCuenta: 'habilitada',
+  });
+
+  const soporte =
+    await SoporteAcademico.create({
+      monitor: monitor._id,
+      materia: materia._id,
+      tipoDocumento:
+        'Soporte académico',
+      nombreOriginal: 'soporte.pdf',
+      nombreArchivo:
+        'archivo-prueba.pdf',
+      rutaArchivo: path.join(
+        carpetaPruebas,
+        'archivo-prueba.pdf'
+      ),
+      tipoMime: 'application/pdf',
+      tamanoBytes: 1024,
+    });
+
+  const cookie = await iniciarSesion(
+    'otro.monitor@urosario.edu.co'
+  );
+
+  const respuesta = await request(app)
+    .get(
+      `/api/soportes/${soporte._id}/descargar`
+    )
+    .set('Cookie', cookie);
+
+  assert.equal(respuesta.status, 403);
+  assert.equal(
+    respuesta.body.error.codigo,
+    'ACCESO_DENEGADO'
+  );
+});
+
+test('GET /api/soportes/:id - permite al propietario consultar su soporte', async () => {
+  const { monitor, materia } =
+    await crearMonitorAprobado();
+
+  const soporte =
+    await SoporteAcademico.create({
+      monitor: monitor._id,
+      materia: materia._id,
+      tipoDocumento:
+        'Soporte académico',
+      nombreOriginal: 'soporte.pdf',
+      nombreArchivo:
+        'archivo-prueba.pdf',
+      rutaArchivo: path.join(
+        carpetaPruebas,
+        'archivo-prueba.pdf'
+      ),
+      tipoMime: 'application/pdf',
+      tamanoBytes: 1024,
+    });
+
+  const cookie = await iniciarSesion(
+    'monitor@urosario.edu.co'
+  );
+
+  const respuesta = await request(app)
+    .get(`/api/soportes/${soporte._id}`)
+    .set('Cookie', cookie);
+
+  assert.equal(respuesta.status, 200);
+  assert.equal(
+    respuesta.body.soporte.estado,
+    'Pendiente'
+  );
+  assert.equal(
+    respuesta.body.soporte.rutaArchivo,
+    undefined
+  );
+  assert.equal(
+    respuesta.body.soporte.nombreArchivo,
+    undefined
+  );
+});

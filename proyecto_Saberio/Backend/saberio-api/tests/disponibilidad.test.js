@@ -363,3 +363,108 @@ test('DELETE /api/disponibilidad/:id - rechaza eliminar horario reservado', asyn
     'HORARIO_RESERVADO'
   );
 });
+test('PATCH /api/disponibilidad/:id/estado - rechaza modificar disponibilidad ajena', async () => {
+  const monitor = await crearMonitor();
+
+  const passwordHash =
+    await generarPasswordHash('Password123');
+
+  await Usuario.create({
+    nombre: 'Otro Monitor',
+    correo:
+      'otro.monitor@urosario.edu.co',
+    passwordHash,
+    roles: ['monitor'],
+    correoVerificado: true,
+    estadoCuenta: 'habilitada',
+  });
+
+  const disponibilidad =
+    await Disponibilidad.create({
+      monitor: monitor._id,
+      fecha: '2026-12-01',
+      horaInicio: '10:00',
+      horaFin: '12:00',
+      estado: 'Disponible',
+    });
+
+  const cookieOtroMonitor =
+    await iniciarSesion(
+      'otro.monitor@urosario.edu.co'
+    );
+
+  const respuesta = await request(app)
+    .patch(
+      `/api/disponibilidad/${disponibilidad._id}/estado`
+    )
+    .set('Cookie', cookieOtroMonitor)
+    .send({
+      estado: 'Bloqueado',
+    });
+
+  assert.equal(respuesta.status, 403);
+  assert.equal(
+    respuesta.body.error.codigo,
+    'ACCESO_DENEGADO'
+  );
+
+  const disponibilidadActualizada =
+    await Disponibilidad.findById(
+      disponibilidad._id
+    );
+
+  assert.equal(
+    disponibilidadActualizada.estado,
+    'Disponible'
+  );
+});
+
+test('DELETE /api/disponibilidad/:id - rechaza eliminar disponibilidad ajena', async () => {
+  const monitor = await crearMonitor();
+
+  const passwordHash =
+    await generarPasswordHash('Password123');
+
+  await Usuario.create({
+    nombre: 'Otro Monitor',
+    correo:
+      'otro.monitor@urosario.edu.co',
+    passwordHash,
+    roles: ['monitor'],
+    correoVerificado: true,
+    estadoCuenta: 'habilitada',
+  });
+
+  const disponibilidad =
+    await Disponibilidad.create({
+      monitor: monitor._id,
+      fecha: '2026-12-01',
+      horaInicio: '10:00',
+      horaFin: '12:00',
+      estado: 'Disponible',
+    });
+
+  const cookieOtroMonitor =
+    await iniciarSesion(
+      'otro.monitor@urosario.edu.co'
+    );
+
+  const respuesta = await request(app)
+    .delete(
+      `/api/disponibilidad/${disponibilidad._id}`
+    )
+    .set('Cookie', cookieOtroMonitor);
+
+  assert.equal(respuesta.status, 403);
+  assert.equal(
+    respuesta.body.error.codigo,
+    'ACCESO_DENEGADO'
+  );
+
+  const disponibilidadExistente =
+    await Disponibilidad.findById(
+      disponibilidad._id
+    );
+
+  assert.ok(disponibilidadExistente);
+});

@@ -54,6 +54,7 @@ async function crearMonitorAprobado(
     enfoqueEnsenanza:
       'Explico con ejemplos paso a paso y refuerzo los conceptos con ejercicios.',
     materiasOfrecidas: [materia._id],
+    materiasAcreditadas: [materia._id],
     tarifaPorHora: tarifa,
     modalidades: ['Virtual'],
     disponibilidadHoraria:
@@ -341,5 +342,119 @@ test('GET /api/busqueda/monitores/:id - obtiene el perfil público de un monitor
   assert.equal(
     respuesta.body.monitor.calificacion,
     5
+  );
+});
+test('GET /api/busqueda/monitores - excluye monitor con materia no acreditada', async () => {
+  const passwordHash =
+    await generarPasswordHash('Password123');
+
+  const monitor = await Usuario.create({
+    nombre: 'Monitor No Acreditado',
+    correo:
+      'monitor.no.acreditado.busqueda@urosario.edu.co',
+    passwordHash,
+    roles: ['monitor'],
+    correoVerificado: true,
+    estadoCuenta: 'habilitada',
+  });
+
+  const materia = await Materia.create({
+    nombre: 'Cálculo Diferencial',
+    codigo: 'CALC-101',
+    facultad: 'Ingeniería',
+    creditos: 4,
+  });
+
+  await PerfilMonitor.create({
+    usuario: monitor._id,
+    biografia:
+      'Soy monitor de matemáticas con experiencia apoyando a estudiantes universitarios.',
+    experienciaAcademica:
+      'Estudiante de último semestre de Matemáticas con promedio destacado.',
+    enfoqueEnsenanza:
+      'Explico con ejemplos paso a paso y refuerzo los conceptos con ejercicios.',
+    materiasOfrecidas: [materia._id],
+    tarifaPorHora: 25000,
+    modalidades: ['Virtual'],
+    disponibilidadHoraria:
+      'Lunes a viernes de 2:00 p. m. a 6:00 p. m.',
+    estadoPerfil: 'Aprobado',
+  });
+
+  await Publicacion.create({
+    monitor: monitor._id,
+    materia: materia._id,
+    descripcion:
+      'Apoyo en derivadas, integrales y preparación de parciales con ejercicios.',
+    modalidad: 'Virtual',
+    tarifaPorHora: 25000,
+    duracionMinutos: 90,
+    activa: true,
+  });
+
+  const cookie = await crearEstudiante();
+
+  const respuesta = await request(app)
+    .get('/api/busqueda/monitores')
+    .set('Cookie', cookie)
+    .query({
+      materia: materia._id.toString(),
+    });
+
+  assert.equal(respuesta.status, 200);
+  assert.equal(
+    respuesta.body.monitores.length,
+    0
+  );
+});
+test('GET /api/busqueda/monitores/:id - rechaza perfil de monitor pendiente', async () => {
+  const passwordHash =
+    await generarPasswordHash('Password123');
+
+  const monitor = await Usuario.create({
+    nombre: 'Monitor Pendiente',
+    correo:
+      'monitor.pendiente.busqueda@urosario.edu.co',
+    passwordHash,
+    roles: ['monitor'],
+    correoVerificado: true,
+    estadoCuenta: 'habilitada',
+  });
+
+  const materia = await Materia.create({
+    nombre: 'Cálculo Diferencial',
+    codigo: 'CALC-101',
+    facultad: 'Ingeniería',
+    creditos: 4,
+  });
+
+  await PerfilMonitor.create({
+    usuario: monitor._id,
+    biografia:
+      'Soy monitor de matemáticas con experiencia apoyando a estudiantes universitarios.',
+    experienciaAcademica:
+      'Estudiante de último semestre de Matemáticas con promedio destacado.',
+    enfoqueEnsenanza:
+      'Explico con ejemplos paso a paso y refuerzo los conceptos con ejercicios.',
+    materiasOfrecidas: [materia._id],
+    tarifaPorHora: 25000,
+    modalidades: ['Virtual'],
+    disponibilidadHoraria:
+      'Lunes a viernes de 2:00 p. m. a 6:00 p. m.',
+    estadoPerfil: 'Pendiente',
+  });
+
+  const cookie = await crearEstudiante();
+
+  const respuesta = await request(app)
+    .get(
+      `/api/busqueda/monitores/${monitor._id}`
+    )
+    .set('Cookie', cookie);
+
+  assert.equal(respuesta.status, 404);
+  assert.equal(
+    respuesta.body.error.codigo,
+    'PERFIL_NO_ENCONTRADO'
   );
 });

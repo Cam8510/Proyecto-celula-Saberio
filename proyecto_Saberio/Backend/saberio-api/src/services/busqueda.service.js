@@ -21,8 +21,13 @@ async function buscarMonitores(filtros) {
     activa: true,
   };
 
+  const filtroPerfil = {
+    estadoPerfil: 'Aprobado',
+  };
+
   if (materia) {
     filtroPublicacion.materia = materia;
+    filtroPerfil.materiasAcreditadas = materia;
   }
 
   if (modalidad && modalidad !== 'Todas') {
@@ -44,11 +49,25 @@ async function buscarMonitores(filtros) {
     .populate('materia', 'nombre codigo')
     .sort({ createdAt: -1 });
 
+  const perfilesAprobados = await PerfilMonitor.find(
+    filtroPerfil
+  ).select('usuario');
+
+  const idsMonitoresAprobados = new Set(
+    perfilesAprobados.map((perfil) =>
+      perfil.usuario.toString()
+    )
+  );
+
   const monitoresMap = new Map();
 
   for (const publicacion of publicaciones) {
     const idMonitor =
       publicacion.monitor._id.toString();
+
+    if (!idsMonitoresAprobados.has(idMonitor)) {
+      continue;
+    }
 
     if (!monitoresMap.has(idMonitor)) {
       const perfil = await PerfilMonitor.findOne({
@@ -219,7 +238,10 @@ async function obtenerPerfilPublico(idMonitor) {
     usuario: idMonitor,
   });
 
-  if (!perfil) {
+  if (
+    !perfil ||
+    perfil.estadoPerfil !== 'Aprobado'
+  ) {
     throw new HttpError(
       404,
       'El monitor no tiene un perfil público',

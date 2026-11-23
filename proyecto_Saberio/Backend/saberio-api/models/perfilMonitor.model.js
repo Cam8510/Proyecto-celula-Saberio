@@ -74,6 +74,15 @@ const perfilMonitorSchema = new Schema(
       minlength: [10, 'La disponibilidad horaria debe tener al menos 10 caracteres'],
       maxlength: [500, 'La disponibilidad horaria no puede superar 500 caracteres'],
     },
+    materiasAcreditadas: {
+      type: [
+        {
+          type: Schema.Types.ObjectId,
+          ref: 'Materia',
+        },
+      ],
+      default: [],
+    },
 
     estadoPerfil: {
       type: String,

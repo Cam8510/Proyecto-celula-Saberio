@@ -1,6 +1,7 @@
 const SolicitudTutoria = require('../../models/solicitudTutoria.model');
 const Usuario = require('../../models/usuario.model');
 const Materia = require('../../models/materia.model');
+const Publicacion = require('../../models/publicacion.model');
 const HttpError = require('../utils/HttpError');
 
 const {
@@ -32,6 +33,36 @@ async function crear(idEstudiante, datos) {
       400,
       'La materia indicada no existe o no está activa',
       'MATERIA_INVALIDA'
+    );
+  }
+
+  const publicacion = await Publicacion.findOne({
+    monitor: datos.monitor,
+    materia: datos.materia,
+    activa: true,
+  });
+
+  if (!publicacion) {
+    throw new HttpError(
+      400,
+      'El monitor no tiene una publicación activa para esta materia',
+      'PUBLICACION_NO_DISPONIBLE'
+    );
+  }
+
+  const solicitudDuplicada =
+    await SolicitudTutoria.findOne({
+      estudiante: idEstudiante,
+      monitor: datos.monitor,
+      materia: datos.materia,
+      estado: 'Pendiente',
+    });
+
+  if (solicitudDuplicada) {
+    throw new HttpError(
+      400,
+      'Ya tienes una solicitud pendiente para este monitor y materia',
+      'SOLICITUD_DUPLICADA'
     );
   }
 

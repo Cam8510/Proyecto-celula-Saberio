@@ -8,6 +8,7 @@ const app = require('../app');
 const Usuario = require('../models/usuario.model');
 const Materia = require('../models/materia.model');
 const SolicitudTutoria = require('../models/solicitudTutoria.model');
+const Publicacion = require('../models/publicacion.model');
 const {
   generarPasswordHash,
 } = require('../src/services/password.service');
@@ -29,6 +30,22 @@ async function crearMateria() {
     codigo: 'CALC-101',
     facultad: 'Ingeniería',
     creditos: 4,
+  });
+}
+
+async function crearPublicacionActiva(
+  idMonitor,
+  idMateria
+) {
+  return Publicacion.create({
+    monitor: idMonitor,
+    materia: idMateria,
+    descripcion:
+      'Apoyo en derivadas, integrales y preparación de parciales con ejercicios.',
+    modalidad: 'Virtual',
+    tarifaPorHora: 25000,
+    duracionMinutos: 90,
+    activa: true,
   });
 }
 
@@ -69,6 +86,7 @@ test.beforeEach(async () => {
   await Usuario.deleteMany({});
   await Materia.deleteMany({});
   await SolicitudTutoria.deleteMany({});
+  await Publicacion.deleteMany({});
 });
 
 test('POST /api/solicitudes - crea una solicitud como estudiante', async () => {
@@ -85,6 +103,11 @@ test('POST /api/solicitudes - crea una solicitud como estudiante', async () => {
   });
 
   const materia = await crearMateria();
+
+  await crearPublicacionActiva(
+    monitor._id,
+    materia._id
+  );
 
   const cookie = await iniciarSesion(
     'sofia.martinez@urosario.edu.co'
@@ -123,6 +146,11 @@ test('POST /api/solicitudes - rechaza usuario sin rol estudiante', async () => {
   });
 
   const materia = await crearMateria();
+
+  await crearPublicacionActiva(
+    monitor._id,
+    materia._id
+  );
 
   const cookie = await iniciarSesion(
     'monitor@urosario.edu.co'
@@ -209,6 +237,105 @@ test('POST /api/solicitudes - rechaza materia inexistente', async () => {
   );
 });
 
+test('POST /api/solicitudes - rechaza monitor sin publicación activa', async () => {
+  const estudiante = await crearUsuario({
+    nombre: 'Sofia Martinez',
+    correo: 'sofia.martinez@urosario.edu.co',
+    roles: ['estudiante'],
+  });
+
+  const monitor = await crearUsuario({
+    nombre: 'Monitor Prueba',
+    correo: 'monitor@urosario.edu.co',
+    roles: ['monitor'],
+  });
+
+  const materia = await crearMateria();
+
+  const cookie = await iniciarSesion(
+    'sofia.martinez@urosario.edu.co'
+  );
+
+  const respuesta = await request(app)
+    .post('/api/solicitudes')
+    .set('Cookie', cookie)
+    .send(
+      datosSolicitudValidos(
+        monitor._id.toString(),
+        materia._id.toString()
+      )
+    );
+
+  assert.equal(respuesta.status, 400);
+  assert.equal(
+    respuesta.body.error.codigo,
+    'PUBLICACION_NO_DISPONIBLE'
+  );
+
+  const totalSolicitudes =
+    await SolicitudTutoria.countDocuments();
+
+  assert.equal(totalSolicitudes, 0);
+});
+
+test('POST /api/solicitudes - rechaza solicitud pendiente duplicada', async () => {
+  const estudiante = await crearUsuario({
+    nombre: 'Sofia Martinez',
+    correo: 'sofia.martinez@urosario.edu.co',
+    roles: ['estudiante'],
+  });
+
+  const monitor = await crearUsuario({
+    nombre: 'Monitor Prueba',
+    correo: 'monitor@urosario.edu.co',
+    roles: ['monitor'],
+  });
+
+  const materia = await crearMateria();
+
+  await crearPublicacionActiva(
+    monitor._id,
+    materia._id
+  );
+
+  const cookie = await iniciarSesion(
+    'sofia.martinez@urosario.edu.co'
+  );
+
+  const primera = await request(app)
+    .post('/api/solicitudes')
+    .set('Cookie', cookie)
+    .send(
+      datosSolicitudValidos(
+        monitor._id.toString(),
+        materia._id.toString()
+      )
+    );
+
+  assert.equal(primera.status, 201);
+
+  const segunda = await request(app)
+    .post('/api/solicitudes')
+    .set('Cookie', cookie)
+    .send(
+      datosSolicitudValidos(
+        monitor._id.toString(),
+        materia._id.toString()
+      )
+    );
+
+  assert.equal(segunda.status, 400);
+  assert.equal(
+    segunda.body.error.codigo,
+    'SOLICITUD_DUPLICADA'
+  );
+
+  const totalSolicitudes =
+    await SolicitudTutoria.countDocuments();
+
+  assert.equal(totalSolicitudes, 1);
+});
+
 test('POST /api/solicitudes - rechaza hora inválida', async () => {
   await crearUsuario({
     nombre: 'Sofia Martinez',
@@ -223,6 +350,11 @@ test('POST /api/solicitudes - rechaza hora inválida', async () => {
   });
 
   const materia = await crearMateria();
+
+  await crearPublicacionActiva(
+    monitor._id,
+    materia._id
+  );
 
   const cookie = await iniciarSesion(
     'sofia.martinez@urosario.edu.co'
@@ -260,6 +392,11 @@ test('GET /api/solicitudes - lista solicitudes del estudiante', async () => {
   });
 
   const materia = await crearMateria();
+
+  await crearPublicacionActiva(
+    monitor._id,
+    materia._id
+  );
 
   const cookie = await iniciarSesion(
     'sofia.martinez@urosario.edu.co'
@@ -301,6 +438,11 @@ test('GET /api/solicitudes - lista solicitudes del monitor', async () => {
   });
 
   const materia = await crearMateria();
+
+  await crearPublicacionActiva(
+    monitor._id,
+    materia._id
+  );
 
   const cookieEstudiante = await iniciarSesion(
     'sofia.martinez@urosario.edu.co'
@@ -347,6 +489,11 @@ test('GET /api/solicitudes/:id - obtiene una solicitud', async () => {
 
   const materia = await crearMateria();
 
+  await crearPublicacionActiva(
+    monitor._id,
+    materia._id
+  );
+
   const cookie = await iniciarSesion(
     'sofia.martinez@urosario.edu.co'
   );
@@ -389,6 +536,11 @@ test('PATCH /api/solicitudes/:id/estado - acepta una solicitud', async () => {
   });
 
   const materia = await crearMateria();
+
+  await crearPublicacionActiva(
+    monitor._id,
+    materia._id
+  );
 
   const cookieEstudiante = await iniciarSesion(
     'sofia.martinez@urosario.edu.co'
@@ -441,6 +593,11 @@ test('PATCH /api/solicitudes/:id/estado - rechaza estado inválido', async () =>
   });
 
   const materia = await crearMateria();
+
+  await crearPublicacionActiva(
+    monitor._id,
+    materia._id
+  );
 
   const cookieEstudiante = await iniciarSesion(
     'sofia.martinez@urosario.edu.co'

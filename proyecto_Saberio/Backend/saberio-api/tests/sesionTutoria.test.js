@@ -556,3 +556,128 @@ test('PATCH /api/sesiones/:id/finalizar - rechaza estudiante', async () => {
     'ACCESO_DENEGADO'
   );
 });
+test('POST /api/sesiones - rechaza monitor ajeno a la solicitud', async () => {
+  const estudiante = await crearUsuario({
+    nombre: 'Sofia Martinez',
+    correo: 'sofia.martinez@urosario.edu.co',
+    roles: ['estudiante'],
+  });
+
+  const monitor = await crearUsuario({
+    nombre: 'Monitor Prueba',
+    correo: 'monitor@urosario.edu.co',
+    roles: ['monitor'],
+  });
+
+  const otroMonitor = await crearUsuario({
+    nombre: 'Otro Monitor',
+    correo: 'otro.monitor@urosario.edu.co',
+    roles: ['monitor'],
+  });
+
+  const materia = await crearMateria();
+
+  const solicitud = await crearSolicitudAceptada(
+    estudiante,
+    monitor,
+    materia
+  );
+
+  const cookieOtroMonitor = await iniciarSesion(
+    'otro.monitor@urosario.edu.co'
+  );
+
+  const respuesta = await request(app)
+    .post('/api/sesiones')
+    .set('Cookie', cookieOtroMonitor)
+    .send(
+      datosSesionValidos(
+        solicitud._id.toString()
+      )
+    );
+
+  assert.equal(respuesta.status, 403);
+  assert.equal(
+    respuesta.body.error.codigo,
+    'ACCESO_DENEGADO'
+  );
+
+  const totalSesiones =
+    await SesionTutoria.countDocuments();
+
+  assert.equal(totalSesiones, 0);
+});
+test('PATCH /api/sesiones/:id/finalizar - rechaza finalizar una sesión ya completada', async () => {
+  const estudiante = await crearUsuario({
+    nombre: 'Sofia Martinez',
+    correo: 'sofia.martinez@urosario.edu.co',
+    roles: ['estudiante'],
+  });
+
+  const monitor = await crearUsuario({
+    nombre: 'Monitor Prueba',
+    correo: 'monitor@urosario.edu.co',
+    roles: ['monitor'],
+  });
+
+  const materia = await crearMateria();
+
+  const solicitud = await crearSolicitudAceptada(
+    estudiante,
+    monitor,
+    materia
+  );
+
+  const cookie = await iniciarSesion(
+    'monitor@urosario.edu.co'
+  );
+
+  const creacion = await request(app)
+    .post('/api/sesiones')
+    .set('Cookie', cookie)
+    .send(
+      datosSesionValidos(
+        solicitud._id.toString()
+      )
+    );
+
+  const idSesion =
+    creacion.body.sesion.id;
+
+  const primera = await request(app)
+    .patch(`/api/sesiones/${idSesion}/finalizar`)
+    .set('Cookie', cookie)
+    .send({
+      notas:
+        'Se repasaron límites y derivadas con ejercicios.',
+    });
+
+  assert.equal(primera.status, 200);
+  assert.equal(
+    primera.body.sesion.estado,
+    'Completada'
+  );
+
+  const segunda = await request(app)
+    .patch(`/api/sesiones/${idSesion}/finalizar`)
+    .set('Cookie', cookie)
+    .send({
+      notas: 'Intento de finalización adicional.',
+    });
+
+  assert.equal(segunda.status, 400);
+  assert.equal(
+    segunda.body.error.codigo,
+    'SESION_NO_PROGRAMADA'
+  );
+
+  const sesion = await SesionTutoria.findById(
+    idSesion
+  );
+
+  assert.equal(sesion.estado, 'Completada');
+  assert.equal(
+    sesion.notas,
+    'Se repasaron límites y derivadas con ejercicios.'
+  );
+});

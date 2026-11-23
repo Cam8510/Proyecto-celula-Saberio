@@ -3,7 +3,10 @@ const Materia = require('../../models/materia.model');
 const PerfilMonitor = require('../../models/perfilMonitor.model');
 const HttpError = require('../utils/HttpError');
 
-async function crear(idMonitor, datos) {
+async function validarMateriaParaPublicar(
+  idMonitor,
+  idMateria
+) {
   const perfil = await PerfilMonitor.findOne({
     usuario: idMonitor,
   });
@@ -16,15 +19,9 @@ async function crear(idMonitor, datos) {
     );
   }
 
-  if (perfil.estadoPerfil !== 'Aprobado') {
-    throw new HttpError(
-      403,
-      'Tu perfil de monitor aún no está aprobado',
-      'MONITOR_NO_ACREDITADO'
-    );
-  }
-
-  const materia = await Materia.findById(datos.materia);
+  const materia = await Materia.findById(
+    idMateria
+  );
 
   if (!materia || !materia.activa) {
     throw new HttpError(
@@ -36,7 +33,8 @@ async function crear(idMonitor, datos) {
 
   const materiaEnPerfil = perfil.materiasOfrecidas.some(
     (materiaPerfil) =>
-      materiaPerfil.toString() === materia._id.toString()
+      materiaPerfil.toString() ===
+      materia._id.toString()
   );
 
   if (!materiaEnPerfil) {
@@ -47,13 +45,44 @@ async function crear(idMonitor, datos) {
     );
   }
 
+  const materiaAcreditada = (
+    perfil.materiasAcreditadas || []
+  ).some(
+    (materiaPerfil) =>
+      materiaPerfil.toString() ===
+      materia._id.toString()
+  );
+
+  if (!materiaAcreditada) {
+    throw new HttpError(
+      403,
+      'No tienes acreditación para publicar esta materia',
+      'MONITOR_NO_ACREDITADO'
+    );
+  }
+
+  return materia;
+}
+
+async function crear(idMonitor, datos) {
+  const materia = await validarMateriaParaPublicar(
+    idMonitor,
+    datos.materia
+  );
+
   const publicacion = await Publicacion.create({
     monitor: idMonitor,
-    ...datos,
+    materia: materia._id,
+    descripcion: datos.descripcion,
+    modalidad: datos.modalidad,
+    tarifaPorHora: datos.tarifaPorHora,
+    duracionMinutos: datos.duracionMinutos,
   });
 
   return publicacion;
 }
+
+
 
 async function listarActivas() {
   const publicaciones = await Publicacion.find({
@@ -97,7 +126,9 @@ async function actualizar(
   idMonitor,
   datos
 ) {
-  const publicacion = await Publicacion.findById(idPublicacion);
+  const publicacion = await Publicacion.findById(
+    idPublicacion
+  );
 
   if (!publicacion) {
     throw new HttpError(
@@ -118,34 +149,12 @@ async function actualizar(
     );
   }
 
-  const materia = await Materia.findById(datos.materia);
-
-  if (!materia || !materia.activa) {
-    throw new HttpError(
-      400,
-      'La materia indicada no existe o no está activa',
-      'MATERIA_INVALIDA'
-    );
-  }
-
-  const perfil = await PerfilMonitor.findOne({
-    usuario: idMonitor,
-  });
-
-  const materiaEnPerfil = perfil.materiasOfrecidas.some(
-    (materiaPerfil) =>
-      materiaPerfil.toString() === materia._id.toString()
+  const materia = await validarMateriaParaPublicar(
+    idMonitor,
+    datos.materia
   );
 
-  if (!materiaEnPerfil) {
-    throw new HttpError(
-      400,
-      'Solo puedes publicar materias incluidas en tu perfil',
-      'MATERIA_NO_EN_PERFIL'
-    );
-  }
-
-  publicacion.materia = datos.materia;
+  publicacion.materia = materia._id;
   publicacion.descripcion = datos.descripcion;
   publicacion.modalidad = datos.modalidad;
   publicacion.tarifaPorHora = datos.tarifaPorHora;
@@ -161,7 +170,9 @@ async function cambiarEstado(
   idMonitor,
   activa
 ) {
-  const publicacion = await Publicacion.findById(idPublicacion);
+  const publicacion = await Publicacion.findById(
+    idPublicacion
+  );
 
   if (!publicacion) {
     throw new HttpError(
@@ -179,6 +190,21 @@ async function cambiarEstado(
       403,
       'No puedes cambiar el estado de esta publicación',
       'ACCESO_DENEGADO'
+    );
+  }
+
+  if (typeof activa !== 'boolean') {
+    throw new HttpError(
+      400,
+      'El estado activa debe ser true o false',
+      'ESTADO_INVALIDO'
+    );
+  }
+
+  if (activa) {
+    await validarMateriaParaPublicar(
+      idMonitor,
+      publicacion.materia
     );
   }
 

@@ -1,6 +1,7 @@
 const Evaluacion = require('../../models/evaluacion.model');
 const SesionTutoria = require('../../models/sesionTutoria.model');
 const HttpError = require('../utils/HttpError');
+const mongoose = require('mongoose');
 
 async function crear(idEstudiante, datos) {
   const sesion = await SesionTutoria.findById(
@@ -101,7 +102,7 @@ async function obtenerPromedio(idMonitor) {
   };
 }
 
-const mongoose = require('mongoose');
+
 
 module.exports = {
   crear,

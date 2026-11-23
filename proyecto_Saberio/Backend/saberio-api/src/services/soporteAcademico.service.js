@@ -266,6 +266,20 @@ async function revisar(
     );
   }
 
+  if (datos.estado === 'Rechazado') {
+    await PerfilMonitor.updateOne(
+      {
+        usuario: soporte.monitor,
+      },
+      {
+        $pull: {
+          materiasAcreditadas:
+            soporte.materia,
+        },
+      }
+    );
+  }
+
   return soporte;
 }
 

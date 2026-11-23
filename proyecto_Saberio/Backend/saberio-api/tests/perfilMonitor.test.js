@@ -277,3 +277,141 @@ test('GET /api/perfiles/monitor - rechaza usuario sin rol monitor', async () => 
     'ACCESO_DENEGADO'
   );
 });
+test('PUT /api/perfiles/monitor - crea el perfil sin materias acreditadas', async () => {
+  const monitor = await crearMonitor();
+  const materia = await crearMateria();
+
+  const cookie = await iniciarSesion(
+    'monitor@urosario.edu.co'
+  );
+
+  const respuesta = await request(app)
+    .put('/api/perfiles/monitor')
+    .set('Cookie', cookie)
+    .send(
+      datosPerfilValidos(materia._id.toString())
+    );
+
+  assert.equal(respuesta.status, 200);
+
+  const perfil = await PerfilMonitor.findOne({
+    usuario: monitor._id,
+  });
+
+  assert.ok(perfil);
+  assert.deepEqual(
+    perfil.materiasAcreditadas.map(String),
+    []
+  );
+  assert.equal(perfil.estadoPerfil, 'Pendiente');
+});
+
+test('PUT /api/perfiles/monitor - impide asignarse materias acreditadas', async () => {
+  const monitor = await crearMonitor();
+  const materia = await crearMateria();
+
+  await PerfilMonitor.create({
+    usuario: monitor._id,
+    ...datosPerfilValidos(materia._id.toString()),
+  });
+
+  const cookie = await iniciarSesion(
+    'monitor@urosario.edu.co'
+  );
+
+  const respuesta = await request(app)
+    .put('/api/perfiles/monitor')
+    .set('Cookie', cookie)
+    .send({
+      ...datosPerfilValidos(materia._id.toString()),
+      materiasAcreditadas: [
+        materia._id.toString(),
+      ],
+    });
+
+  assert.equal(respuesta.status, 400);
+  assert.equal(
+    respuesta.body.error.codigo,
+    'CAMPOS_NO_PERMITIDOS'
+  );
+
+  const perfil = await PerfilMonitor.findOne({
+    usuario: monitor._id,
+  });
+
+  assert.deepEqual(
+    perfil.materiasAcreditadas.map(String),
+    []
+  );
+});
+
+test('PUT /api/perfiles/monitor - impide aprobar su propio perfil', async () => {
+  const monitor = await crearMonitor();
+  const materia = await crearMateria();
+
+  await PerfilMonitor.create({
+    usuario: monitor._id,
+    ...datosPerfilValidos(materia._id.toString()),
+  });
+
+  const cookie = await iniciarSesion(
+    'monitor@urosario.edu.co'
+  );
+
+  const respuesta = await request(app)
+    .put('/api/perfiles/monitor')
+    .set('Cookie', cookie)
+    .send({
+      ...datosPerfilValidos(materia._id.toString()),
+      estadoPerfil: 'Aprobado',
+    });
+
+  assert.equal(respuesta.status, 400);
+  assert.equal(
+    respuesta.body.error.codigo,
+    'CAMPOS_NO_PERMITIDOS'
+  );
+
+  const perfil = await PerfilMonitor.findOne({
+    usuario: monitor._id,
+  });
+
+  assert.equal(perfil.estadoPerfil, 'Pendiente');
+});
+
+test('PUT /api/perfiles/monitor - conserva la acreditación al editar datos del perfil', async () => {
+  const monitor = await crearMonitor();
+  const materia = await crearMateria();
+
+  await PerfilMonitor.create({
+    usuario: monitor._id,
+    ...datosPerfilValidos(materia._id.toString()),
+    materiasAcreditadas: [materia._id],
+    estadoPerfil: 'Aprobado',
+  });
+
+  const cookie = await iniciarSesion(
+    'monitor@urosario.edu.co'
+  );
+
+  const respuesta = await request(app)
+    .put('/api/perfiles/monitor')
+    .set('Cookie', cookie)
+    .send({
+      ...datosPerfilValidos(materia._id.toString()),
+      tarifaPorHora: 30000,
+    });
+
+  assert.equal(respuesta.status, 200);
+
+  const perfil = await PerfilMonitor.findOne({
+    usuario: monitor._id,
+  });
+
+  assert.equal(perfil.tarifaPorHora, 30000);
+  assert.equal(perfil.estadoPerfil, 'Aprobado');
+  assert.deepEqual(
+    perfil.materiasAcreditadas.map(String),
+    [materia._id.toString()]
+  );
+});
