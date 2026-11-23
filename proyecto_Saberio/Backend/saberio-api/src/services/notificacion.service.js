@@ -78,8 +78,36 @@ async function enviarCodigoVerificacion({
 
   await enviarCorreo(destinatario, asunto, html);
 }
+async function enviarCodigoRecuperacion({
+  destinatario,
+  codigo,
+  venceEn,
+}) {
+  const asunto =
+    'Recuperación de contraseña de Saberio';
+
+  const html = `
+    <h2>Recupera tu contraseña</h2>
+    <p>Recibimos una solicitud para cambiar la contraseña de tu cuenta de Saberio.</p>
+    <p>Tu código de recuperación es:</p>
+    <p style="font-size: 28px; font-weight: bold;">
+      ${codigo}
+    </p>
+    <p>Este código tiene una vigencia de 15 minutos.</p>
+    <p>Vence el ${new Date(venceEn).toISOString()} (UTC).</p>
+    <p>Si no solicitaste este cambio, ignora este correo.</p>
+    <p>No compartas este código con nadie.</p>
+  `;
+
+  await enviarCorreo(
+    destinatario,
+    asunto,
+    html
+  );
+}
 
 module.exports = {
   notificarNuevaSolicitud,
   enviarCodigoVerificacion,
+  enviarCodigoRecuperacion,
 };

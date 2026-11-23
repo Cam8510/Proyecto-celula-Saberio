@@ -1,13 +1,20 @@
 const crypto = require('crypto');
 const Usuario = require('../../models/usuario.model');
 const HttpError = require('../utils/HttpError');
+
 const {
   generarPasswordHash,
   comprobarPassword,
 } = require('./password.service');
 
-const INTENTOS_MAXIMOS_LOGIN = 5;
+const {
+  enviarCodigoRecuperacion,
+} = require('./notificacion.service');
+
 const CODIGO_RECUPERACION_EXPIRACION_MINUTOS = 15;
+
+const MENSAJE_RECUPERACION =
+  'Si el correo está registrado, recibirás un código para recuperar tu contraseña.';
 
 function construirPerfilPublico(usuario) {
   return {
@@ -21,7 +28,26 @@ function construirPerfilPublico(usuario) {
   };
 }
 
-async function registrarCuenta({ nombre, correo, password, rol }) {
+function normalizarCorreoRecuperacion(correo) {
+  return typeof correo === 'string'
+    ? correo.trim().toLowerCase()
+    : '';
+}
+
+function errorRecuperacion() {
+  return new HttpError(
+    400,
+    'El código de recuperación no es válido o ha expirado',
+    'CODIGO_RECUPERACION_INVALIDO'
+  );
+}
+
+async function registrarCuenta({
+  nombre,
+  correo,
+  password,
+  rol,
+}) {
   if (rol !== 'estudiante' && rol !== 'monitor') {
     throw new HttpError(
       400,
@@ -42,7 +68,8 @@ async function registrarCuenta({ nombre, correo, password, rol }) {
     );
   }
 
-  const passwordHash = await generarPasswordHash(password);
+  const passwordHash =
+    await generarPasswordHash(password);
 
   let usuario;
 
@@ -72,10 +99,13 @@ async function registrarCuenta({ nombre, correo, password, rol }) {
   return construirPerfilPublico(usuario);
 }
 
-async function iniciarSesion({ correo, contrasena }) {
-  const usuario = await Usuario.findOne({ correo }).select(
-    '+passwordHash'
-  );
+async function iniciarSesion({
+  correo,
+  contrasena,
+}) {
+  const usuario = await Usuario.findOne({
+    correo,
+  }).select('+passwordHash');
 
   if (!usuario) {
     throw new HttpError(
@@ -85,10 +115,11 @@ async function iniciarSesion({ correo, contrasena }) {
     );
   }
 
-  const contrasenaValida = await comprobarPassword(
-    contrasena,
-    usuario.passwordHash
-  );
+  const contrasenaValida =
+    await comprobarPassword(
+      contrasena,
+      usuario.passwordHash
+    );
 
   if (!contrasenaValida) {
     throw new HttpError(
@@ -118,7 +149,8 @@ async function iniciarSesion({ correo, contrasena }) {
 }
 
 async function obtenerPerfil(idUsuario) {
-  const usuario = await Usuario.findById(idUsuario);
+  const usuario =
+    await Usuario.findById(idUsuario);
 
   if (!usuario) {
     throw new HttpError(
@@ -131,9 +163,11 @@ async function obtenerPerfil(idUsuario) {
   return construirPerfilPublico(usuario);
 }
 
-async function actualizarPerfil(idUsuario, datos) {
+async function actualizarPerfil(
+  idUsuario,
+  datos
+) {
   const camposPermitidos = ['nombre'];
-
   const actualizaciones = {};
 
   for (const campo of camposPermitidos) {
@@ -142,7 +176,9 @@ async function actualizarPerfil(idUsuario, datos) {
     }
   }
 
-  if (Object.keys(actualizaciones).length === 0) {
+  if (
+    Object.keys(actualizaciones).length === 0
+  ) {
     throw new HttpError(
       400,
       'No se enviaron campos válidos para actualizar',
@@ -150,14 +186,15 @@ async function actualizarPerfil(idUsuario, datos) {
     );
   }
 
-  const usuario = await Usuario.findByIdAndUpdate(
-    idUsuario,
-    actualizaciones,
-    {
-      new: true,
-      runValidators: true,
-    }
-  );
+  const usuario =
+    await Usuario.findByIdAndUpdate(
+      idUsuario,
+      actualizaciones,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
 
   if (!usuario) {
     throw new HttpError(
@@ -170,37 +207,59 @@ async function actualizarPerfil(idUsuario, datos) {
   return construirPerfilPublico(usuario);
 }
 
-async function solicitarRecuperacion({ correo }) {
-  const usuario = await Usuario.findOne({ correo });
+async function solicitarRecuperacion({
+  correo,
+}) {
+  const correoNormalizado =
+    normalizarCorreoRecuperacion(correo);
+
+  if (!correoNormalizado) {
+    return {
+      mensaje: MENSAJE_RECUPERACION,
+    };
+  }
+
+  const usuario = await Usuario.findOne({
+    correo: correoNormalizado,
+  });
 
   if (!usuario) {
     return {
-      mensaje:
-        'Si el correo está registrado, recibirás un código para recuperar tu contraseña.',
+      mensaje: MENSAJE_RECUPERACION,
     };
   }
 
   const codigo = crypto
     .randomInt(100000, 1000000)
-    .toString()
-    .padStart(6, '0');
+    .toString();
 
   const expiracion = new Date(
-    Date.now() + CODIGO_RECUPERACION_EXPIRACION_MINUTOS * 60 * 1000
+    Date.now() +
+      CODIGO_RECUPERACION_EXPIRACION_MINUTOS *
+        60 *
+        1000
   );
 
+  const codigoHash =
+    await generarPasswordHash(codigo);
+
   usuario.recuperacionContrasena = {
-    codigoHash: await generarPasswordHash(codigo),
+    codigoHash,
     expiracion,
     utilizado: false,
   };
 
   await usuario.save();
 
+  // El código se envía únicamente al correo de la cuenta.
+  await enviarCodigoRecuperacion({
+    destinatario: usuario.correo,
+    codigo,
+    venceEn: expiracion,
+  });
+
   return {
-    mensaje:
-      'Si el correo está registrado, recibirás un código para recuperar tu contraseña.',
-    codigoDesarrollo: codigo,
+    mensaje: MENSAJE_RECUPERACION,
   };
 }
 
@@ -209,37 +268,61 @@ async function restablecerContrasena({
   codigo,
   nuevaContrasena,
 }) {
-  const usuario = await Usuario.findOne({ correo }).select(
+  const correoNormalizado =
+    normalizarCorreoRecuperacion(correo);
+
+  if (
+    !correoNormalizado ||
+    typeof codigo !== 'string' ||
+    !/^\d{6}$/.test(codigo)
+  ) {
+    throw errorRecuperacion();
+  }
+
+  const usuario = await Usuario.findOne({
+    correo: correoNormalizado,
+  }).select(
     '+recuperacionContrasena +passwordHash'
   );
 
+  const recuperacion =
+    usuario?.recuperacionContrasena;
+
   if (
     !usuario ||
-    !usuario.recuperacionContrasena ||
-    usuario.recuperacionContrasena.utilizado ||
-    usuario.recuperacionContrasena.expiracion < new Date()
+    !recuperacion ||
+    recuperacion.utilizado ||
+    !recuperacion.codigoHash ||
+    !recuperacion.expiracion
   ) {
-    throw new HttpError(
-      400,
-      'El código de recuperación no es válido o ha expirado',
-      'CODIGO_RECUPERACION_INVALIDO'
-    );
+    throw errorRecuperacion();
   }
 
-  const codigoValido = await comprobarPassword(
-    codigo,
-    usuario.recuperacionContrasena.codigoHash
-  );
+  const expiracion = new Date(
+    recuperacion.expiracion
+  ).getTime();
+
+  if (
+    !Number.isFinite(expiracion) ||
+    expiracion <= Date.now()
+  ) {
+    throw errorRecuperacion();
+  }
+
+  const codigoValido =
+    await comprobarPassword(
+      codigo,
+      recuperacion.codigoHash
+    );
 
   if (!codigoValido) {
-    throw new HttpError(
-      400,
-      'El código de recuperación no es válido o ha expirado',
-      'CODIGO_RECUPERACION_INVALIDO'
-    );
+    throw errorRecuperacion();
   }
 
-  const passwordHash = await generarPasswordHash(nuevaContrasena);
+  const passwordHash =
+    await generarPasswordHash(
+      nuevaContrasena
+    );
 
   usuario.passwordHash = passwordHash;
   usuario.recuperacionContrasena = undefined;
@@ -247,7 +330,8 @@ async function restablecerContrasena({
   await usuario.save();
 
   return {
-    mensaje: 'Tu contraseña fue actualizada correctamente.',
+    mensaje:
+      'Tu contraseña fue actualizada correctamente.',
   };
 }
 
