@@ -61,6 +61,25 @@ async function notificarNuevaSolicitud(
   }
 }
 
+async function enviarCodigoVerificacion({
+  destinatario,
+  codigo,
+  venceEn,
+}) {
+  const asunto = 'Código de verificación de Saberio';
+
+  const html = `
+    <h2>Verifica tu cuenta</h2>
+    <p>Tu código de verificación es:</p>
+    <p style="font-size: 28px; font-weight: bold;">${codigo}</p>
+    <p>Este código vence el ${new Date(venceEn).toLocaleString('es-CO')}.</p>
+    <p>Si no solicitaste este código, ignora este correo.</p>
+  `;
+
+  await enviarCorreo(destinatario, asunto, html);
+}
+
 module.exports = {
   notificarNuevaSolicitud,
+  enviarCodigoVerificacion,
 };

@@ -1,25 +1,27 @@
 const assert = require('node:assert/strict');
+const { randomBytes } = require('node:crypto');
 const HttpError = require('../src/utils/HttpError');
 
-const {
-  randomBytes,
-} = require('node:crypto');
-
 const rutaUsuario = require.resolve(
-  '../models/usuario.model',
+  '../models/usuario.model'
 );
 
 const rutaServicio = require.resolve(
-  '../src/services/verificacionCorreo.service',
+  '../src/services/verificacionCorreo.service'
+);
+
+const rutaNotificacion = require.resolve(
+  '../src/services/notificacion.service'
 );
 
 const rutas = [
   rutaUsuario,
   rutaServicio,
+  rutaNotificacion,
 ];
 
 const cacheAnterior = new Map(
-  rutas.map((ruta) => [ruta, require.cache[ruta]]),
+  rutas.map((ruta) => [ruta, require.cache[ruta]])
 );
 
 const claveAnterior =
@@ -27,6 +29,8 @@ const claveAnterior =
 
 let buscarUsuarioImplementacion;
 let actualizarUsuarioImplementacion;
+let enviarCodigoImplementacion;
+let envios;
 
 function instalarSimulado(ruta, exports) {
   require.cache[ruta] = {
@@ -41,33 +45,47 @@ function instalarSimulado(ruta, exports) {
 
 function crearConsulta(implementacion, argumentos) {
   return {
-    async select(campos) {
-      return implementacion(
-        ...argumentos,
-        campos,
-      );
+    select(campos) {
+      const ejecutar = () =>
+        Promise.resolve().then(() =>
+          implementacion(...argumentos, campos)
+        );
+
+      return {
+        then(resolver, rechazar) {
+          return ejecutar().then(resolver, rechazar);
+        },
+
+        lean() {
+          return ejecutar();
+        },
+      };
     },
   };
 }
 
 function reiniciarSimulaciones() {
+  envios = [];
+
   buscarUsuarioImplementacion = async () => {
     throw new Error(
-      'Configura findOne para esta prueba.',
+      'Configura findOne para esta prueba.'
     );
   };
 
   actualizarUsuarioImplementacion = async () => {
     throw new Error(
-      'Configura findOneAndUpdate para esta prueba.',
+      'Configura findOneAndUpdate para esta prueba.'
     );
   };
+
+  enviarCodigoImplementacion = async () => {};
 }
 
 async function comprobarError(
   operacion,
   codigo,
-  status,
+  status
 ) {
   await assert.rejects(
     operacion,
@@ -77,7 +95,7 @@ async function comprobarError(
       assert.equal(error.status, status);
 
       return true;
-    },
+    }
   );
 }
 
@@ -87,15 +105,24 @@ async function main() {
     randomBytes(32).toString('hex');
 
   instalarSimulado(rutaUsuario, {
-    findOne: (...args) => crearConsulta(
-      buscarUsuarioImplementacion,
-      args,
-    ),
+    findOne: (...args) =>
+      crearConsulta(
+        buscarUsuarioImplementacion,
+        args
+      ),
 
-    findOneAndUpdate: (...args) => crearConsulta(
-      actualizarUsuarioImplementacion,
-      args,
-    ),
+    findOneAndUpdate: (...args) =>
+      crearConsulta(
+        actualizarUsuarioImplementacion,
+        args
+      ),
+  });
+
+  instalarSimulado(rutaNotificacion, {
+    async enviarCodigoVerificacion(datos) {
+      envios.push(datos);
+      await enviarCodigoImplementacion(datos);
+    },
   });
 
   delete require.cache[rutaServicio];
@@ -105,6 +132,11 @@ async function main() {
     verificarCodigo,
   } = require(rutaServicio);
 
+  const {
+    generarCodigoVerificacion,
+    coincideCodigo,
+  } = require('../src/utils/codigoVerificacion');
+
   const resultados = [];
 
   async function prueba(nombre, ejecutar) {
@@ -113,15 +145,16 @@ async function main() {
     try {
       await ejecutar();
       resultados.push(nombre);
-
       console.log(`OK: ${nombre}`);
-    } catch {
+    } catch (error) {
       throw new Error(
         `Falló la prueba: ${nombre}`,
+        { cause: error }
       );
     }
   }
-    await prueba(
+
+  await prueba(
     'No emite para una cuenta no elegible',
     async () => {
       let filtroRecibido;
@@ -138,22 +171,23 @@ async function main() {
       };
 
       const resultado = await emitirCodigo(
-        '  PRUEBA@UROSARIO.EDU.CO  ',
+        '  PRUEBA@UROSARIO.EDU.CO  '
       );
 
       assert.equal(resultado, null);
       assert.equal(actualizaciones, 0);
+      assert.equal(envios.length, 0);
 
       assert.deepEqual(filtroRecibido, {
         correo: 'prueba@urosario.edu.co',
         correoVerificado: false,
         estadoCuenta: 'habilitada',
       });
-    },
+    }
   );
 
   await prueba(
-    'Devuelve una emisión cuando la actualización es permitida',
+    'Guarda la primera emisión y envía el código sin devolverlo',
     async () => {
       const usuario = {
         _id: 'usuario-ficticio-de-prueba',
@@ -165,13 +199,16 @@ async function main() {
       let cambioRecibido;
       let opcionesRecibidas;
 
-      buscarUsuarioImplementacion = async () => usuario;
+      buscarUsuarioImplementacion = async () =>
+        usuario;
 
       actualizarUsuarioImplementacion = async (
         filtro,
         cambio,
-        opciones,
+        opciones
       ) => {
+        assert.equal(envios.length, 0);
+
         actualizaciones += 1;
         filtroRecibido = filtro;
         cambioRecibido = cambio;
@@ -181,7 +218,7 @@ async function main() {
       };
 
       const resultado = await emitirCodigo(
-        usuario.correo,
+        usuario.correo
       );
 
       assert.equal(actualizaciones, 1);
@@ -189,56 +226,50 @@ async function main() {
 
       assert.equal(
         resultado.destinatario,
-        usuario.correo,
+        usuario.correo
       );
 
-      assert.match(resultado.codigo, /^\d{6}$/);
       assert.ok(resultado.venceEn instanceof Date);
 
-      assert.equal(
-        filtroRecibido._id,
-        usuario._id,
-      );
-
-      assert.equal(
-        filtroRecibido.correoVerificado,
-        false,
-      );
-
-      assert.equal(
-        filtroRecibido.estadoCuenta,
-        'habilitada',
-      );
+      assert.deepEqual(filtroRecibido, {
+        _id: usuario._id,
+        correoVerificado: false,
+        estadoCuenta: 'habilitada',
+        'verificacionCorreo.creadoEn': {
+          $exists: false,
+        },
+      });
 
       const guardado =
         cambioRecibido.$set.verificacionCorreo;
 
       assert.match(
         guardado.huella,
-        /^[a-f0-9]{64}$/,
+        /^[a-f0-9]{64}$/
       );
 
       assert.match(
         guardado.nonce,
-        /^[a-f0-9]{32}$/,
+        /^[a-f0-9]{32}$/
       );
 
       assert.equal(guardado.intentos, 0);
+      assert.equal(guardado.reenvios, 0);
+
       assert.ok(guardado.creadoEn instanceof Date);
       assert.ok(guardado.venceEn instanceof Date);
 
       assert.equal(
         guardado.venceEn.getTime() -
           guardado.creadoEn.getTime(),
-        10 * 60 * 1000,
+        10 * 60 * 1000
       );
 
       assert.equal(
         resultado.venceEn.getTime(),
-        guardado.venceEn.getTime(),
+        guardado.venceEn.getTime()
       );
 
-      // El código en claro no debe guardarse en este objeto.
       assert.deepEqual(
         Object.keys(guardado).sort(),
         [
@@ -247,28 +278,167 @@ async function main() {
           'creadoEn',
           'venceEn',
           'intentos',
-        ].sort(),
+          'reenvios',
+        ].sort()
       );
 
-      // La huella y el nonce no se entregan al servicio de envío.
       assert.deepEqual(
         Object.keys(resultado).sort(),
+        ['destinatario', 'venceEn'].sort()
+      );
+
+      assert.equal(envios.length, 1);
+
+      const envio = envios[0];
+
+      assert.equal(
+        envio.destinatario,
+        usuario.correo
+      );
+
+      assert.match(envio.codigo, /^\d{6}$/);
+
+      assert.equal(
+        envio.venceEn.getTime(),
+        guardado.venceEn.getTime()
+      );
+
+      assert.deepEqual(
+        Object.keys(envio).sort(),
         [
           'destinatario',
           'codigo',
           'venceEn',
-        ].sort(),
+        ].sort()
+      );
+
+      assert.equal(
+        coincideCodigo({
+          usuarioId: usuario._id,
+          codigo: envio.codigo,
+          nonce: guardado.nonce,
+          huella: guardado.huella,
+        }),
+        true
       );
 
       assert.deepEqual(opcionesRecibidas, {
         returnDocument: 'after',
         runValidators: true,
       });
-    },
+    }
   );
 
   await prueba(
-    'No devuelve una emisión si la actualización de reenvío es rechazada',
+    'Guarda y envía un reenvío permitido',
+    async () => {
+      const usuario = {
+        _id: 'usuario-ficticio-de-prueba',
+        correo: 'prueba@urosario.edu.co',
+      };
+
+      const emisionPrevia = {
+        creadoEn: new Date(Date.now() - 120000),
+        reenvios: 2,
+      };
+
+      let filtroRecibido;
+      let cambioRecibido;
+
+      buscarUsuarioImplementacion = async (
+        filtro,
+        campos
+      ) => {
+        if (campos === '_id correo') {
+          return usuario;
+        }
+
+        return {
+          ...usuario,
+          verificacionCorreo: emisionPrevia,
+        };
+      };
+
+      actualizarUsuarioImplementacion = async (
+        filtro,
+        cambio
+      ) => {
+        assert.equal(envios.length, 0);
+
+        filtroRecibido = filtro;
+        cambioRecibido = cambio;
+
+        return { _id: usuario._id };
+      };
+
+      const resultado = await emitirCodigo(
+        usuario.correo
+      );
+
+      assert.equal(envios.length, 1);
+
+      assert.deepEqual(
+        filtroRecibido[
+          'verificacionCorreo.reenvios'
+        ],
+        { $lt: 6 }
+      );
+
+      const creadoEn =
+        cambioRecibido.$set[
+          'verificacionCorreo.creadoEn'
+        ];
+
+      const limiteReenvio =
+        filtroRecibido[
+          'verificacionCorreo.creadoEn'
+        ].$lte;
+
+      assert.equal(
+        creadoEn.getTime() -
+          limiteReenvio.getTime(),
+        60 * 1000
+      );
+
+      assert.deepEqual(cambioRecibido.$inc, {
+        'verificacionCorreo.reenvios': 1,
+      });
+
+      assert.equal(
+        cambioRecibido.$set[
+          'verificacionCorreo.intentos'
+        ],
+        0
+      );
+
+      assert.equal(
+        coincideCodigo({
+          usuarioId: usuario._id,
+          codigo: envios[0].codigo,
+          nonce:
+            cambioRecibido.$set[
+              'verificacionCorreo.nonce'
+            ],
+          huella:
+            cambioRecibido.$set[
+              'verificacionCorreo.huella'
+            ],
+        }),
+        true
+      );
+
+      assert.deepEqual(resultado, {
+        destinatario: usuario.correo,
+        venceEn:
+          cambioRecibido.$set[
+            'verificacionCorreo.venceEn'
+          ],
+      });
+    }
+  );
+
+  await prueba(
+    'No envía si la actualización de reenvío es rechazada',
     async () => {
       const usuario = {
         _id: 'usuario-ficticio-de-prueba',
@@ -279,56 +449,152 @@ async function main() {
       let filtroRecibido;
       let cambioRecibido;
 
-      buscarUsuarioImplementacion = async () => usuario;
+      buscarUsuarioImplementacion = async (
+        filtro,
+        campos
+      ) => {
+        if (campos === '_id correo') {
+          return usuario;
+        }
+
+        return {
+          ...usuario,
+          verificacionCorreo: {
+            creadoEn: new Date(),
+            reenvios: 0,
+          },
+        };
+      };
 
       actualizarUsuarioImplementacion = async (
         filtro,
-        cambio,
+        cambio
       ) => {
         actualizaciones += 1;
         filtroRecibido = filtro;
         cambioRecibido = cambio;
 
-        // Simula que ninguna cuenta cumple el filtro.
         return null;
       };
 
       const resultado = await emitirCodigo(
-        usuario.correo,
+        usuario.correo
       );
 
       assert.equal(resultado, null);
       assert.equal(actualizaciones, 1);
+      assert.equal(envios.length, 0);
 
-      assert.ok(Array.isArray(filtroRecibido.$or));
-      assert.equal(filtroRecibido.$or.length, 2);
+      assert.equal(
+        filtroRecibido._id,
+        usuario._id
+      );
 
       assert.deepEqual(
-        filtroRecibido.$or[0],
-        {
-          'verificacionCorreo.creadoEn': {
-            $exists: false,
-          },
-        },
+        filtroRecibido[
+          'verificacionCorreo.reenvios'
+        ],
+        { $lt: 6 }
       );
 
       const limiteReenvio =
-        filtroRecibido.$or[1][
+        filtroRecibido[
           'verificacionCorreo.creadoEn'
         ].$lte;
 
       const creadoEn =
-        cambioRecibido.$set.verificacionCorreo.creadoEn;
+        cambioRecibido.$set[
+          'verificacionCorreo.creadoEn'
+        ];
 
       assert.ok(limiteReenvio instanceof Date);
 
       assert.equal(
-        creadoEn.getTime() - limiteReenvio.getTime(),
-        60 * 1000,
+        creadoEn.getTime() -
+          limiteReenvio.getTime(),
+        60 * 1000
       );
-    },
+
+      assert.deepEqual(cambioRecibido.$inc, {
+        'verificacionCorreo.reenvios': 1,
+      });
+    }
   );
-    await prueba(
+
+  await prueba(
+    'Rechaza el reenvío cuando se alcanzó el límite',
+    async () => {
+      const usuario = {
+        _id: 'usuario-ficticio-de-prueba',
+        correo: 'prueba@urosario.edu.co',
+      };
+
+      buscarUsuarioImplementacion = async (
+        filtro,
+        campos
+      ) => {
+        if (campos === '_id correo') {
+          return usuario;
+        }
+
+        return {
+          ...usuario,
+          verificacionCorreo: {
+            creadoEn: new Date(Date.now() - 120000),
+            reenvios: 6,
+          },
+        };
+      };
+
+      actualizarUsuarioImplementacion = async () =>
+        null;
+
+      await comprobarError(
+        () => emitirCodigo(usuario.correo),
+        'REENVIO_NO_DISPONIBLE',
+        429
+      );
+
+      assert.equal(envios.length, 0);
+    }
+  );
+
+  await prueba(
+    'Propaga un fallo del envío de correo',
+    async () => {
+      const usuario = {
+        _id: 'usuario-ficticio-de-prueba',
+        correo: 'prueba@urosario.edu.co',
+      };
+
+      const esperado = new Error(
+        'Fallo simulado del correo'
+      );
+
+      buscarUsuarioImplementacion = async () =>
+        usuario;
+
+      actualizarUsuarioImplementacion = async () => ({
+        _id: usuario._id,
+      });
+
+      enviarCodigoImplementacion = async () => {
+        throw esperado;
+      };
+
+      await assert.rejects(
+        () => emitirCodigo(usuario.correo),
+        (error) => {
+          assert.equal(error, esperado);
+          return true;
+        }
+      );
+
+      assert.equal(envios.length, 1);
+    }
+  );
+
+  await prueba(
     'Rechaza un código numérico sin consultar el modelo',
     async () => {
       let actualizaciones = 0;
@@ -339,16 +605,17 @@ async function main() {
       };
 
       await comprobarError(
-        () => verificarCodigo({
-          correo: 'prueba@urosario.edu.co',
-          codigo: 123456,
-        }),
+        () =>
+          verificarCodigo({
+            correo: 'prueba@urosario.edu.co',
+            codigo: 123456,
+          }),
         'CODIGO_NO_VALIDO',
-        400,
+        400
       );
 
       assert.equal(actualizaciones, 0);
-    },
+    }
   );
 
   await prueba(
@@ -362,7 +629,7 @@ async function main() {
       actualizarUsuarioImplementacion = async (
         filtro,
         cambio,
-        opciones,
+        opciones
       ) => {
         actualizaciones += 1;
         filtroRecibido = filtro;
@@ -373,42 +640,43 @@ async function main() {
       };
 
       await comprobarError(
-        () => verificarCodigo({
-          correo: '  PRUEBA@UROSARIO.EDU.CO  ',
-          codigo: '123456',
-        }),
+        () =>
+          verificarCodigo({
+            correo: '  PRUEBA@UROSARIO.EDU.CO  ',
+            codigo: '123456',
+          }),
         'CODIGO_NO_VALIDO',
-        400,
+        400
       );
 
       assert.equal(actualizaciones, 1);
 
       assert.equal(
         filtroRecibido.correo,
-        'prueba@urosario.edu.co',
+        'prueba@urosario.edu.co'
       );
 
       assert.equal(
         filtroRecibido.correoVerificado,
-        false,
+        false
       );
 
       assert.equal(
         filtroRecibido.estadoCuenta,
-        'habilitada',
+        'habilitada'
       );
 
       assert.ok(
         filtroRecibido[
           'verificacionCorreo.venceEn'
-        ].$gt instanceof Date,
+        ].$gt instanceof Date
       );
 
       assert.deepEqual(
         filtroRecibido[
           'verificacionCorreo.intentos'
         ],
-        { $lt: 5 },
+        { $lt: 5 }
       );
 
       assert.deepEqual(cambioRecibido, {
@@ -420,17 +688,15 @@ async function main() {
       assert.deepEqual(opcionesRecibidas, {
         returnDocument: 'after',
       });
-    },
+    }
   );
 
   await prueba(
     'Un código incorrecto consume el intento sin confirmar la cuenta',
     async () => {
-      const {
-        generarCodigoVerificacion,
-      } = require('../src/utils/codigoVerificacion');
+      const usuarioId =
+        'usuario-ficticio-de-prueba';
 
-      const usuarioId = 'usuario-ficticio-de-prueba';
       const generado =
         generarCodigoVerificacion(usuarioId);
 
@@ -445,7 +711,7 @@ async function main() {
 
       actualizarUsuarioImplementacion = async (
         filtro,
-        cambio,
+        cambio
       ) => {
         actualizaciones += 1;
         cambioRecibido = cambio;
@@ -465,12 +731,13 @@ async function main() {
       };
 
       await comprobarError(
-        () => verificarCodigo({
-          correo: 'prueba@urosario.edu.co',
-          codigo: codigoIncorrecto,
-        }),
+        () =>
+          verificarCodigo({
+            correo: 'prueba@urosario.edu.co',
+            codigo: codigoIncorrecto,
+          }),
         'CODIGO_NO_VALIDO',
-        400,
+        400
       );
 
       assert.equal(actualizaciones, 1);
@@ -480,17 +747,15 @@ async function main() {
           'verificacionCorreo.intentos': 1,
         },
       });
-    },
+    }
   );
 
   await prueba(
-    'Un código correcto confirma la cuenta y solicita eliminar la emisión',
+    'Un código correcto confirma la cuenta y elimina la emisión',
     async () => {
-      const {
-        generarCodigoVerificacion,
-      } = require('../src/utils/codigoVerificacion');
+      const usuarioId =
+        'usuario-ficticio-de-prueba';
 
-      const usuarioId = 'usuario-ficticio-de-prueba';
       const generado =
         generarCodigoVerificacion(usuarioId);
 
@@ -499,7 +764,7 @@ async function main() {
       actualizarUsuarioImplementacion = async (
         filtro,
         cambio,
-        opciones,
+        opciones
       ) => {
         llamadas.push({
           filtro,
@@ -542,31 +807,31 @@ async function main() {
 
       assert.equal(
         confirmacion.filtro._id,
-        usuarioId,
+        usuarioId
       );
 
       assert.equal(
         confirmacion.filtro.correoVerificado,
-        false,
+        false
       );
 
       assert.equal(
         confirmacion.filtro.estadoCuenta,
-        'habilitada',
+        'habilitada'
       );
 
       assert.equal(
         confirmacion.filtro[
           'verificacionCorreo.nonce'
         ],
-        generado.nonce,
+        generado.nonce
       );
 
       assert.equal(
         confirmacion.filtro[
           'verificacionCorreo.huella'
         ],
-        generado.huella,
+        generado.huella
       );
 
       const verificadoEn =
@@ -576,19 +841,19 @@ async function main() {
 
       assert.equal(
         confirmacion.cambio.$set.correoVerificado,
-        true,
+        true
       );
 
       assert.equal(
         confirmacion.filtro[
           'verificacionCorreo.venceEn'
         ].$gt.getTime(),
-        verificadoEn.getTime(),
+        verificadoEn.getTime()
       );
 
       assert.deepEqual(
         confirmacion.cambio.$unset,
-        { verificacionCorreo: 1 },
+        { verificacionCorreo: 1 }
       );
 
       assert.deepEqual(confirmacion.opciones, {
@@ -600,16 +865,17 @@ async function main() {
         mensaje:
           'Correo verificado correctamente. Ya puedes iniciar sesión.',
       });
-    },
+
+      assert.equal(envios.length, 0);
+    }
   );
-    await prueba(
+
+  await prueba(
     'Rechaza la confirmación si la actualización final no encuentra la emisión',
     async () => {
-      const {
-        generarCodigoVerificacion,
-      } = require('../src/utils/codigoVerificacion');
+      const usuarioId =
+        'usuario-ficticio-de-prueba';
 
-      const usuarioId = 'usuario-ficticio-de-prueba';
       const generado =
         generarCodigoVerificacion(usuarioId);
 
@@ -618,7 +884,7 @@ async function main() {
       actualizarUsuarioImplementacion = async (
         filtro,
         cambio,
-        opciones,
+        opciones
       ) => {
         llamadas.push({
           filtro,
@@ -640,18 +906,17 @@ async function main() {
         }
 
         assert.equal(llamadas.length, 2);
-
-        // Simula que la emisión ya no cumple el filtro.
         return null;
       };
 
       await comprobarError(
-        () => verificarCodigo({
-          correo: 'prueba@urosario.edu.co',
-          codigo: generado.codigo,
-        }),
+        () =>
+          verificarCodigo({
+            correo: 'prueba@urosario.edu.co',
+            codigo: generado.codigo,
+          }),
         'CODIGO_NO_VALIDO',
-        400,
+        400
       );
 
       assert.equal(llamadas.length, 2);
@@ -662,28 +927,28 @@ async function main() {
         filtroFinal[
           'verificacionCorreo.nonce'
         ],
-        generado.nonce,
+        generado.nonce
       );
 
       assert.equal(
         filtroFinal[
           'verificacionCorreo.huella'
         ],
-        generado.huella,
+        generado.huella
       );
 
       assert.equal(
         filtroFinal.correoVerificado,
-        false,
+        false
       );
-    },
+    }
   );
 
   await prueba(
     'Propaga un fallo del modelo al reservar el intento',
     async () => {
       const esperado = new Error(
-        'Fallo simulado al reservar el intento',
+        'Fallo simulado al reservar el intento'
       );
 
       let actualizaciones = 0;
@@ -694,33 +959,32 @@ async function main() {
       };
 
       await assert.rejects(
-        () => verificarCodigo({
-          correo: 'prueba@urosario.edu.co',
-          codigo: '123456',
-        }),
+        () =>
+          verificarCodigo({
+            correo: 'prueba@urosario.edu.co',
+            codigo: '123456',
+          }),
         (error) => {
           assert.equal(error, esperado);
           return true;
-        },
+        }
       );
 
       assert.equal(actualizaciones, 1);
-    },
+    }
   );
 
   await prueba(
     'Propaga un fallo del modelo durante la confirmación final',
     async () => {
-      const {
-        generarCodigoVerificacion,
-      } = require('../src/utils/codigoVerificacion');
+      const usuarioId =
+        'usuario-ficticio-de-prueba';
 
-      const usuarioId = 'usuario-ficticio-de-prueba';
       const generado =
         generarCodigoVerificacion(usuarioId);
 
       const esperado = new Error(
-        'Fallo simulado durante la confirmación',
+        'Fallo simulado durante la confirmación'
       );
 
       let actualizaciones = 0;
@@ -742,47 +1006,33 @@ async function main() {
         }
 
         assert.equal(actualizaciones, 2);
-
         throw esperado;
       };
 
       await assert.rejects(
-        () => verificarCodigo({
-          correo: 'prueba@urosario.edu.co',
-          codigo: generado.codigo,
-        }),
+        () =>
+          verificarCodigo({
+            correo: 'prueba@urosario.edu.co',
+            codigo: generado.codigo,
+          }),
         (error) => {
           assert.equal(error, esperado);
           return true;
-        },
+        }
       );
 
       assert.equal(actualizaciones, 2);
-    },
+    }
   );
-  
-
-  if (resultados.length === 0) {
-    console.log(
-      'Estructura preparada. Todavía no hay casos de prueba.',
-    );
-
-    return;
-  }
 
   console.log(
-    `Pruebas superadas: ${resultados.length}`,
+    `Pruebas superadas: ${resultados.length}`
   );
 }
 
 main()
   .catch((error) => {
-    console.error(
-      error.message.startsWith('Falló la prueba:')
-        ? error.message
-        : 'No se pudo preparar la prueba del servicio.',
-    );
-
+    console.error(error);
     process.exitCode = 1;
   })
   .finally(() => {
