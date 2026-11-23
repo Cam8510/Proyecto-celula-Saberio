@@ -1,9 +1,11 @@
 const servicio = require('../services/auth.service');
 
+
 async function registrar(req, res) {
   const usuario = await servicio.registrarCuenta(
     res.locals.registro
   );
+
 
   res.status(201).json({
     mensaje:
@@ -11,5 +13,6 @@ async function registrar(req, res) {
     usuario,
   });
 }
+
 
 module.exports = { registrar };

@@ -1,13 +1,11 @@
-const Usuario = require('../../models/usuario.model');
+const HttpError = require('../utils/HttpError');
 
 const {
   emitirCodigo,
   verificarCodigo,
 } = require('../services/verificacionCorreo.service');
 
-const {
-  enviarCodigoVerificacion,
-} = require('../services/correoMicrosoft.service');
+const correoMicrosoft = require('../services/correoMicrosoft.service');
 
 const MENSAJE_SOLICITUD =
   'Si el correo corresponde a una cuenta elegible, se solicitará el envío de un código de verificación.';
@@ -45,9 +43,11 @@ async function solicitarVerificacion(req, res, next) {
     const correo = normalizarCorreo(req.body?.correo);
 
     if (!correo) {
-      return res.status(400).json({
-        error: 'Correo inválido.',
-      });
+      throw new HttpError(
+        400,
+        'Correo inválido.',
+        'CORREO_INVALIDO',
+      );
     }
 
     const emision = await emitirCodigo(correo);
@@ -62,17 +62,21 @@ async function solicitarVerificacion(req, res, next) {
     const restanteMs = venceEn - Date.now();
 
     if (!Number.isFinite(venceEn) || restanteMs <= 0) {
-      return res.status(503).json({
-        error: 'No fue posible preparar el código. Intenta más tarde.',
-      });
+      throw new HttpError(
+        503,
+        'No fue posible preparar el código. Intenta más tarde.',
+        'EMISION_NO_DISPONIBLE',
+      );
     }
 
-    const minutosVigencia = Math.ceil(restanteMs / 60000);
+    const minutosVigencia = Math.ceil(
+      restanteMs / 60000,
+    );
 
-    await enviarCodigoVerificacion({
-      destinatario: emision.destinatario,
-      codigo: emision.codigo,
-      minutosVigencia,
+    await correoMicrosoft.enviarCodigoVerificacion({
+    destinatario: emision.destinatario,
+    codigo: emision.codigo,
+    minutosVigencia,
     });
 
     return res.status(200).json({
@@ -80,9 +84,13 @@ async function solicitarVerificacion(req, res, next) {
     });
   } catch (error) {
     if (error?.codigo === 'SESION_MICROSOFT_AUSENTE') {
-      return res.status(503).json({
-        error: 'El servicio de correo no está disponible temporalmente.',
-      });
+      return next(
+        new HttpError(
+          503,
+          'El servicio de correo no está disponible temporalmente.',
+          'SERVICIO_CORREO_NO_DISPONIBLE',
+        ),
+      );
     }
 
     return next(error);
@@ -95,9 +103,11 @@ async function confirmarVerificacion(req, res, next) {
     const codigo = normalizarCodigo(req.body?.codigo);
 
     if (!correo || !codigo) {
-      return res.status(400).json({
-        error: 'Correo o código inválido.',
-      });
+      throw new HttpError(
+        400,
+        'Correo o código inválido.',
+        'DATOS_VERIFICACION_INVALIDOS',
+      );
     }
 
     await verificarCodigo({

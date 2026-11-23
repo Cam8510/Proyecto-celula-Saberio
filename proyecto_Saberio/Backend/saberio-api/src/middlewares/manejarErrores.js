@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const HttpError = require('../utils/HttpError');
 
+
 function rutaNoEncontrada(req, res, next) {
   next(
     new HttpError(
@@ -11,19 +12,36 @@ function rutaNoEncontrada(req, res, next) {
   );
 }
 
-function responderError(res, status, codigo, mensaje) {
+
+function responderError(
+  res,
+  status,
+  codigo,
+  mensaje,
+  detalles
+) {
+  const error = {
+    codigo,
+    mensaje,
+  };
+
+
+  if (detalles) {
+    error.detalles = detalles;
+  }
+
+
   return res.status(status).json({
-    error: {
-      codigo,
-      mensaje,
-    },
+    error,
   });
 }
+
 
 function manejarErrores(error, req, res, next) {
   if (res.headersSent) {
     return next(error);
   }
+
 
   // Errores controlados por Saberio.
   if (error instanceof HttpError) {
@@ -31,9 +49,11 @@ function manejarErrores(error, req, res, next) {
       res,
       error.status,
       error.codigo,
-      error.message
+      error.message,
+      error.detalles
     );
   }
+
 
   // Errores del procesamiento del cuerpo JSON.
   if (error.type === 'entity.parse.failed') {
@@ -45,6 +65,7 @@ function manejarErrores(error, req, res, next) {
     );
   }
 
+
   if (error.type === 'entity.too.large') {
     return responderError(
       res,
@@ -53,6 +74,7 @@ function manejarErrores(error, req, res, next) {
       'El cuerpo de la petición supera el tamaño permitido'
     );
   }
+
 
   // Datos que incumplen las reglas de un modelo.
   // No enviamos valores internos ni el error completo.
@@ -65,6 +87,7 @@ function manejarErrores(error, req, res, next) {
     );
   }
 
+
   // Conversión fallida, por ejemplo un ObjectId inválido.
   if (error instanceof mongoose.Error.CastError) {
     return responderError(
@@ -74,6 +97,7 @@ function manejarErrores(error, req, res, next) {
       'Uno de los datos tiene un formato inválido'
     );
   }
+
 
   // Conflicto con un índice único de MongoDB.
   if (error.code === 11000) {
@@ -85,18 +109,21 @@ function manejarErrores(error, req, res, next) {
     );
   }
 
+
   // Registro mínimo: no imprimir cuerpos, contraseñas ni URI.
   console.error('Error no controlado:', {
-  nombre: error.name || 'Error',
-  codigo: error.code,
-  metodo: req.method,
-});
+    nombre: error.name || 'Error',
+    codigo: error.code,
+    metodo: req.method,
+  });
 
-// Diagnóstico temporal solo en desarrollo.
-// Revisar localmente: puede contener datos internos.
-if (process.env.NODE_ENV !== 'production') {
-  console.error('Detalle local:', error.message);
-}
+
+  // Diagnóstico temporal solo en desarrollo.
+  // Revisar localmente: puede contener datos internos.
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('Detalle local:', error.message);
+  }
+
 
   return responderError(
     res,
@@ -105,6 +132,7 @@ if (process.env.NODE_ENV !== 'production') {
     'Error interno del servidor'
   );
 }
+
 
 module.exports = {
   rutaNoEncontrada,
